@@ -1,18 +1,17 @@
 // lib/screens/auth/register_screen.dart
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../constants/categories.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/custom_button.dart';
 import 'package:multi_select_flutter/multi_select_flutter.dart';
 import '../../services/auth_service.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import '../../services/user_service.dart';
 import '../../models/user_model.dart';
-import 'package:flutter/foundation.dart';
-import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
-import 'package:google_sign_in_web/google_sign_in_web.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -24,7 +23,8 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final List<String> _selectedCategories = [];
-  XFile? _profileImage;
+  dynamic _profileImageFileOrBytes; // File for mobile, Uint8List for web
+  String? _profileImageUrl;
   bool _isLoading = false;
   bool _isGoogleLoading = false;
   final AuthService _authService = AuthService();
@@ -35,76 +35,105 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    if (kIsWeb) {
-      // Try to sign in silently on web
-      GoogleSignIn().signInSilently();
-    }
-  }
-
   Future<void> _pickProfileImage() async {
-    final ImagePicker picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      setState(() {
-        _profileImage = image;
-      });
+    if (kIsWeb) {
+      final result = await FilePicker.platform.pickFiles(type: FileType.image);
+      if (result != null && result.files.single.bytes != null) {
+        setState(() {
+          _profileImageFileOrBytes = result.files.single.bytes;
+        });
+      }
+    } else {
+      final ImagePicker picker = ImagePicker();
+      final image = await picker.pickImage(source: ImageSource.gallery);
+      if (image != null) {
+        setState(() {
+          _profileImageFileOrBytes = File(image.path);
+        });
+      }
     }
   }
 
   void _register() async {
     if (!_formKey.currentState!.validate() || _selectedCategories.isEmpty) return;
     setState(() => _isLoading = true);
-    final authService = AuthService();
-    final user = await authService.registerWithEmail(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
-    if (user != null) {
-      final appUser = AppUser(
-        uid: user.uid,
-        email: user.email!,
-        categories: _selectedCategories,
-        name: _nameController.text.trim(),
-        username: _usernameController.text.trim(),
+    try {
+      print('Starting registration...');
+      final authService = AuthService();
+      final user = await authService.registerWithEmail(
+        _emailController.text.trim(),
+        _passwordController.text,
       );
-      await _userService.saveUser(appUser);
+      print('Firebase user: ' + user.toString());
+      if (user != null) {
+        String? imageUrl;
+        if (_profileImageFileOrBytes != null) {
+          print('Uploading profile image...');
+          final url = await UserService.uploadFile((_profileImageFileOrBytes as File).path);
+          print('Image upload result: ' + url.toString());
+          imageUrl = url;
+        }
+        print('Saving user profile to backend...');
+        await UserService.saveUserProfile(
+          _nameController.text.trim(),
+          _emailController.text.trim(),
+          imageUrl,
+          _selectedCategories,
+          _usernameController.text.trim(),
+          null,
+        );
+        print('Registration successful!');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registration successful! Please login.')),
+        );
+        Navigator.pushReplacementNamed(context, '/login');
+      } else {
+        print('Registration failed: user is null');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Registration failed.')),
+        );
+      }
+    } catch (e, st) {
+      print('Registration error: ' + e.toString());
+      print(st);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registration successful! Please login.')),
+        SnackBar(content: Text('Error: ' + e.toString())),
       );
-      Navigator.pushReplacementNamed(context, '/login');
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registration failed.')),
-      );
+    } finally {
+      setState(() => _isLoading = false);
     }
-    setState(() => _isLoading = false);
   }
 
   void _handleGoogleSignIn() async {
     setState(() => _isGoogleLoading = true);
-    final user = await _authService.signInWithGoogle();
-    if (user != null) {
-      final appUser = AppUser(
-        uid: user.uid,
-        email: user.email ?? '',
-        categories: _selectedCategories,
-        name: _nameController.text.trim(),
-        username: _usernameController.text.trim(),
-      );
-      await _userService.saveUser(appUser);
+    try {
+      final user = await _authService.signInWithGoogle();
+      if (user != null) {
+        // Save user profile to backend
+        await UserService.saveUserProfile(
+          user.displayName ?? '',
+          user.email ?? '',
+          user.photoURL,
+          [], // categories
+          user.displayName ?? '', // username
+          null, // bio
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Successfully signed in with Google!')),
+        );
+        Navigator.pushReplacementNamed(context, '/');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Google sign-in failed. Please try again.')),
+        );
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Signed in with Google! Please login.')),
+        SnackBar(content: Text('Error: ${e.toString()}')),
       );
-      Navigator.pushReplacementNamed(context, '/login');
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Google sign-in failed.')),
-      );
+    } finally {
+      setState(() => _isGoogleLoading = false);
     }
-    setState(() => _isGoogleLoading = false);
   }
 
   @override
@@ -153,8 +182,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        "Create your account",
-                        style: TextStyle(fontSize: 18, color: Colors.grey[700]),
+                        "Join Tinkerly Today! 🚀",
+                        style: TextStyle(fontSize: 18, color: Colors.grey[700], fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 20),
                       GestureDetector(
@@ -162,10 +191,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: CircleAvatar(
                           radius: 45,
                           backgroundColor: Colors.red.shade50,
-                          backgroundImage: _profileImage != null
-                              ? FileImage(File(_profileImage!.path))
+                          backgroundImage: _profileImageFileOrBytes != null
+                              ? (kIsWeb
+                                  ? MemoryImage(_profileImageFileOrBytes)
+                                  : FileImage(_profileImageFileOrBytes) as ImageProvider)
                               : null,
-                          child: _profileImage == null
+                          child: _profileImageFileOrBytes == null
                               ? const Icon(Icons.camera_alt, size: 32, color: Colors.redAccent)
                               : null,
                         ),
@@ -262,21 +293,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       CustomButton(
                         text: "Sign up with Google",
                         color: Colors.white,
+                        textColor: Colors.black87,
                         isLoading: _isGoogleLoading,
-                        onPressed: kIsWeb ? null : (_isGoogleLoading ? null : _handleGoogleSignIn),
-                        // Add a Google logo if you want, or keep it simple
+                        onPressed: _isGoogleLoading ? null : _handleGoogleSignIn,
+                        icon: Icons.g_mobiledata,
                       ),
-                      if (kIsWeb)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: SizedBox(
-                            width: 220,
-                            height: 50,
-                            child: GoogleSignInPlatform.instance is GoogleSignInPlugin
-                                ? (GoogleSignInPlatform.instance as GoogleSignInPlugin).renderButton()
-                                : const SizedBox.shrink(),
-                          ),
-                        ),
                       const SizedBox(height: 18),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,

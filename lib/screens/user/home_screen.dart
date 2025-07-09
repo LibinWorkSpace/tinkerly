@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:tinkerly/models/user_model.dart';
-import 'package:tinkerly/screens/user/profile_screen.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  final AppUser user;
-  const HomeScreen({super.key, required this.user});
-
+  const HomeScreen({super.key});
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -13,28 +10,27 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
+  final List<Widget> _pages = [
+    Center(child: Text('Home', style: TextStyle(fontSize: 24))),
+    Center(child: Text('Search', style: TextStyle(fontSize: 24))),
+    Center(child: Text('Add', style: TextStyle(fontSize: 24))),
+    Center(child: Text('Portfolio', style: TextStyle(fontSize: 24))),
+    ProfileScreen(),
+  ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final accentColor = const Color(0xFF6C63FF);
-    final List<Widget> _pages = [
-      SizedBox.shrink(), // Home tab: empty
-      SizedBox.shrink(), // Search tab: empty
-      SizedBox.shrink(), // Add tab: empty
-      SizedBox.shrink(), // Portfolio tab: empty
-      ProfileScreen(user: widget.user), // Profile tab
-    ];
     return Scaffold(
-      backgroundColor: Colors.white,
       body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        selectedItemColor: accentColor,
-        unselectedItemColor: Colors.grey[500],
+        onTap: _onItemTapped,
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),

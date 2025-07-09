@@ -6,8 +6,6 @@ import 'screens/auth/register_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/user/home_screen.dart';
 import 'screens/auth/splash_screen.dart';
-import 'models/user_model.dart';
-import 'services/user_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,23 +44,8 @@ class AuthGate extends StatelessWidget {
           );
         }
         if (snapshot.hasData && snapshot.data != null) {
-          // User is signed in, fetch AppUser
-          return FutureBuilder<AppUser?>(
-            future: UserService.getUserByUid(snapshot.data!.uid),
-            builder: (context, userSnap) {
-              if (userSnap.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
-              if (userSnap.hasData && userSnap.data != null) {
-                return HomeScreen(user: userSnap.data!);
-              }
-              // If user doc not found, force logout
-              FirebaseAuth.instance.signOut();
-              return const LoginScreen();
-            },
-          );
+          // User is signed in
+          return const HomeScreen();
         }
         // Not signed in
         return const LoginScreen();

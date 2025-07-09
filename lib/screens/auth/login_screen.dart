@@ -4,6 +4,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/custom_button.dart';
 import '../../services/user_service.dart';
+import '../../services/auth_service.dart';
 import '../user/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -17,6 +18,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
+  final AuthService _authService = AuthService();
 
   void _loginUser() async {
     setState(() {
@@ -24,24 +27,53 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+      final user = await _authService.signInWithEmail(
+        _emailController.text.trim(),
+        _passwordController.text,
       );
-      final appUser = await UserService.getUserByUid(cred.user!.uid);
-      if (appUser != null) {
+      
+      if (user != null) {
+        // Print Firebase ID token for Postman use
+        String? token = await FirebaseAuth.instance.currentUser?.getIdToken();
+        print('FIREBASE_ID_TOKEN: ' + (token ?? 'null'));
         Fluttertoast.showToast(msg: "Login successful! 🎉");
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => HomeScreen(user: appUser)),
+          MaterialPageRoute(builder: (_) => HomeScreen()),
         );
+      } else {
+        Fluttertoast.showToast(msg: "Login failed. Please check your credentials.");
       }
-    } on FirebaseAuthException catch (e) {
-      Fluttertoast.showToast(msg: e.message ?? "Login failed");
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Login failed: "+e.toString());
     } finally {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  void _handleGoogleSignIn() async {
+    setState(() => _isGoogleLoading = true);
+    try {
+      final user = await _authService.signInWithGoogle();
+      if (user != null) {
+        // Print Firebase ID token for Postman use
+        String? token = await FirebaseAuth.instance.currentUser?.getIdToken();
+        print('FIREBASE_ID_TOKEN: ' + (token ?? 'null'));
+        // Check if user exists in our database
+        Fluttertoast.showToast(msg: "Google Sign-In successful! 🎉");
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => HomeScreen()),
+        );
+      } else {
+        Fluttertoast.showToast(msg: "Google sign-in failed. Please try again.");
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Error: "+e.toString());
+    } finally {
+      setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -120,6 +152,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       text: "Login",
                       isLoading: _isLoading,
                       onPressed: _isLoading ? null : _loginUser,
+                    ),
+                    const SizedBox(height: 12),
+                    CustomButton(
+                      text: "Sign in with Google",
+                      color: Colors.white,
+                      textColor: Colors.black87,
+                      isLoading: _isGoogleLoading,
+                      onPressed: _isGoogleLoading ? null : _handleGoogleSignIn,
+                      icon: Icons.g_mobiledata,
                     ),
                     const SizedBox(height: 18),
                     TextButton(

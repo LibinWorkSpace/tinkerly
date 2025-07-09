@@ -5,6 +5,8 @@ class CustomButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool isLoading;
   final Color color;
+  final Color? textColor;
+  final IconData? icon;
 
   const CustomButton({
     super.key,
@@ -12,6 +14,8 @@ class CustomButton extends StatelessWidget {
     required this.onPressed,
     this.isLoading = false,
     this.color = Colors.redAccent,
+    this.textColor,
+    this.icon,
   });
 
   @override
@@ -30,9 +34,22 @@ class CustomButton extends StatelessWidget {
         ),
         child: isLoading
             ? const CircularProgressIndicator(color: Colors.white)
-            : Text(
-                text,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, color: textColor ?? Colors.white),
+                    const SizedBox(width: 8),
+                  ],
+                  Text(
+                    text,
+                    style: TextStyle(
+                      fontSize: 18, 
+                      fontWeight: FontWeight.bold,
+                      color: textColor ?? Colors.white,
+                    ),
+                  ),
+                ],
               ),
       ),
     );

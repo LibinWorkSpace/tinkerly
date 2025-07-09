@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../services/user_service.dart';
 import '../user/home_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -21,14 +20,11 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(milliseconds: 500)); // For splash effect
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final appUser = await UserService.getUserByUid(user.uid);
-      if (appUser != null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => HomeScreen(user: appUser)),
-        );
-        return;
-      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => HomeScreen()),
+      );
+      return;
     }
     Navigator.pushReplacementNamed(context, '/login');
   }

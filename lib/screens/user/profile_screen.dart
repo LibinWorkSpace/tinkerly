@@ -1,211 +1,407 @@
 import 'package:flutter/material.dart';
-import 'package:tinkerly/models/user_model.dart';
-import 'package:tinkerly/screens/user/edit_profile_screen.dart';
-import 'package:tinkerly/services/user_service.dart';
-import 'package:tinkerly/services/auth_service.dart';
-import 'package:tinkerly/screens/auth/login_screen.dart';
+import '../../services/user_service.dart';
+import '../../services/auth_service.dart';
+import '../auth/login_screen.dart';
+import 'edit_profile_screen.dart';
+import '../../models/user_model.dart';
+import 'portfolio_screen.dart'; // Added import for PortfolioScreen
 
 class ProfileScreen extends StatefulWidget {
-  final AppUser user;
-  const ProfileScreen({super.key, required this.user});
-
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  _ProfileScreenState createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  int _selectedTab = 0;
-  late AppUser _currentUser;
-
-  // Mock posts and portfolios
-  final List<Map<String, dynamic>> posts = List.generate(10, (i) => {
-    'id': i,
-    'image': 'https://picsum.photos/seed/$i/200',
-    'category': i % 2 == 0 ? 'Drawing' : 'Music',
-    'title': 'Post $i',
-  });
-  final List<Map<String, dynamic>> portfolios = [
-    {
-      'name': 'Music',
-      'badge': '🎵',
-      'description': 'All my music works',
-      'posts': [1, 3, 5, 7, 9],
-    },
-    {
-      'name': 'Drawing',
-      'badge': '🎨',
-      'description': 'Sketches and digital art',
-      'posts': [0, 2, 4, 6, 8],
-    },
-    {
-      'name': 'Art works',
-      'badge': '🖼️',
-      'description': 'Other creative works',
-      'posts': [2, 5, 8],
-    },
-  ];
+  Map<String, dynamic>? userProfile;
+  List<dynamic> portfolioPosts = [];
+  TabController? _tabController;
+  List<String> categories = [];
+  bool _hasError = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _currentUser = widget.user;
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() {
-      setState(() {
-        _selectedTab = _tabController.index;
-      });
-    });
+    loadProfileAndPosts();
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _tabController?.dispose();
     super.dispose();
   }
 
-  Future<void> _refreshUserData() async {
-    final updatedUser = await UserService.getUserByUid(_currentUser.uid);
-    if (updatedUser != null && mounted) {
+  Future<void> loadProfileAndPosts() async {
+    try {
+      final profile = await UserService.fetchUserProfile();
+      final posts = await UserService.fetchMedia();
+      if (!mounted) return;
+      final newCategories = _extractCategories(posts);
+      // Only recreate TabController if needed
+      if (_tabController == null || _tabController!.length != 2) {
+        _tabController?.dispose();
+        _tabController = TabController(length: 2, vsync: this);
+      }
       setState(() {
-        _currentUser = updatedUser;
+        userProfile = profile;
+        portfolioPosts = posts;
+        categories = newCategories;
+        _hasError = false;
+        _isLoading = false;
       });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _hasError = true;
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<String> _extractCategories(List<dynamic> posts) {
+    final Set<String> cats = {};
+    for (var post in posts) {
+      if (post['category'] != null) cats.add(post['category']);
+    }
+    return cats.toList();
+  }
+
+  void _logout() async {
+    await AuthService().signOut();
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+  }
+
+  void _editProfile() async {
+    final updated = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditProfileScreen(
+          user: AppUser.fromMap(userProfile!),
+        ),
+      ),
+    );
+    if (updated == true) {
+      await loadProfileAndPosts();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = const Color(0xFF6C63FF); // Use your login accent color
+    if (_isLoading) {
+      return Center(child: CircularProgressIndicator());
+    }
+    if (_hasError) {
+      return Center(child: Text('Failed to load profile. Please try again.'));
+    }
+    if (userProfile == null || _tabController == null) {
+      return Center(child: Text('No profile data.'));
+    }
+    final brandColor = Color(0xFF4267B2); // Modern blue
+    // Debug print for profile image URL
+    print('Profile image URL:  [32m${userProfile!["profileImageUrl"]} [0m');
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(56),
+        child: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          automaticallyImplyLeading: false,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.more_vert, color: Colors.black),
+              onPressed: () {},
+            ),
+          ],
+          bottom: PreferredSize(
+            preferredSize: Size.fromHeight(1),
+            child: Container(
+              color: Colors.grey.shade200,
+              height: 1,
+            ),
+          ),
+        ),
+      ),
+      body: SingleChildScrollView(
         child: Column(
           children: [
-            // Profile Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Profile Pic
-                  CircleAvatar(
-                    radius: 36,
-                    backgroundColor: accentColor.withOpacity(0.1),
-                    backgroundImage: _currentUser.profileImageUrl != null ? NetworkImage(_currentUser.profileImageUrl!) : null,
-                    child: _currentUser.profileImageUrl == null
-                        ? Text(
-                            _currentUser.name.isNotEmpty ? _currentUser.name[0].toUpperCase() : '?',
-                            style: TextStyle(fontSize: 32, color: accentColor, fontWeight: FontWeight.bold),
-                          )
-                        : null,
-                  ),
-                  const SizedBox(width: 16),
-                  // Name and stats
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Username
-                        Text(
-                          '@${_currentUser.username}',
-                          style: TextStyle(color: Colors.grey[600], fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 2),
-                        // Name
-                        Text(
-                          _currentUser.name,
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _currentUser.bio ?? '',
-                          style: TextStyle(color: Colors.grey[700], fontSize: 14),
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 36,
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              final updatedUser = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => EditProfileScreen(user: _currentUser),
-                                ),
-                              );
-                              if (updatedUser != null && mounted) {
-                                setState(() {
-                                  _currentUser = updatedUser;
-                                });
-                                // Also refresh from Firestore to ensure consistency
-                                await _refreshUserData();
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.yellow,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              elevation: 0,
-                            ),
-                            child: const Text('Edit Profile', style: TextStyle(fontWeight: FontWeight.bold)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Logout menu button
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert),
-                    onSelected: (value) async {
-                      if (value == 'logout') {
-                        await AuthService().signOut();
-                        if (mounted) {
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(builder: (_) => const LoginScreen()),
-                            (route) => false,
-                          );
-                        }
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem<String>(
-                        value: 'logout',
-                        child: Row(
-                          children: [
-                            Icon(Icons.logout, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('Logout'),
-                          ],
+            const SizedBox(height: 16),
+            Center(
+              child: CircleAvatar(
+                radius: 44,
+                backgroundColor: brandColor.withOpacity(0.1),
+                child: (userProfile!["profileImageUrl"] == null || userProfile!["profileImageUrl"].isEmpty)
+                    ? Text(
+                        userProfile!["name"] != null && userProfile!["name"].isNotEmpty
+                            ? userProfile!["name"][0].toUpperCase()
+                            : "N",
+                        style: TextStyle(fontSize: 40, color: brandColor, fontWeight: FontWeight.bold),
+                      )
+                    : ClipOval(
+                        child: Image.network(
+                          userProfile!["profileImageUrl"],
+                          width: 88,
+                          height: 88,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: 88,
+                              height: 88,
+                              color: brandColor.withOpacity(0.1),
+                              child: Icon(Icons.broken_image, color: brandColor, size: 40),
+                            );
+                          },
                         ),
                       ),
-                    ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: Text(
+                userProfile!["name"] ?? '',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.black),
+              ),
+            ),
+            Center(
+              child: Text(
+                "@${userProfile!["username"] ?? "username"}",
+                style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15, color: Colors.black54),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildStatColumn("Posts", portfolioPosts.length.toString()),
+                _verticalDivider(),
+                _buildStatColumn("Followers", "0"),
+                _verticalDivider(),
+                _buildStatColumn("Following", "0"),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (userProfile!["bio"] != null && userProfile!["bio"].toString().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                child: Text(
+                  userProfile!["bio"],
+                  style: const TextStyle(fontSize: 15, color: Colors.black87),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _editProfile,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: brandColor,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
+                  child: const Text('Edit Profile', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TabBar(
+              controller: _tabController!,
+              indicatorColor: brandColor,
+              indicatorWeight: 3,
+              labelColor: brandColor,
+              unselectedLabelColor: Colors.black26,
+              tabs: const [
+                Tab(icon: Icon(Icons.grid_on)),
+                Tab(icon: Icon(Icons.star_border)),
+              ],
+            ),
+            SizedBox(
+              height: 420, // Fixed height for grid, adjust as needed
+              child: TabBarView(
+                controller: _tabController!,
+                children: [
+                  _buildProfileGrid(brandColor),
+                  _buildPortfolioCategoryList(),
                 ],
               ),
             ),
-            // Tab Bar
-            Container(
-              color: Colors.grey[100],
-              child: TabBar(
-                controller: _tabController,
-                indicatorColor: accentColor,
-                labelColor: accentColor,
-                unselectedLabelColor: Colors.grey[500],
-                tabs: const [
-                  Tab(icon: Icon(Icons.grid_on)),
-                  Tab(icon: Icon(Icons.folder_special)),
-                ],
-              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatColumn(String label, String value) {
+    return Column(
+      children: [
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 13, color: Colors.black54)),
+      ],
+    );
+  }
+
+  Widget _verticalDivider() {
+    return Container(
+      height: 28,
+      width: 1.5,
+      color: Colors.grey.shade300,
+      margin: const EdgeInsets.symmetric(horizontal: 18),
+    );
+  }
+
+  Widget _buildProfileGrid(Color brandColor) {
+    if (portfolioPosts.isEmpty) {
+      return Center(child: Text('No posts yet'));
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.all(8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 1,
+      ),
+      itemCount: portfolioPosts.length,
+      itemBuilder: (context, index) {
+        final post = portfolioPosts[index];
+        return Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          elevation: 2,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: post['imageUrl'] != null
+                ? Image.network(post['imageUrl'], fit: BoxFit.cover)
+                : Container(color: brandColor.withOpacity(0.08)),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPortfolioGrid(String category) {
+    final posts = category == 'All'
+        ? portfolioPosts
+        : portfolioPosts.where((p) => p['category'] == category).toList();
+
+    if (posts.isEmpty) {
+      return _buildEmptyState(category);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.8,
+        ),
+        itemCount: posts.length,
+        itemBuilder: (context, index) {
+          return _buildPortfolioCard(posts[index]);
+        },
+      ),
+    );
+  }
+
+  Widget _buildPortfolioCard(dynamic post) {
+    return GestureDetector(
+      onTap: () => _showPostDetails(post),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
             ),
-            // Tab Views
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Image Section
             Expanded(
-              child: RefreshIndicator(
-                onRefresh: _refreshUserData,
-                child: TabBarView(
-                  controller: _tabController,
+              flex: 3,
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  image: DecorationImage(
+                    image: NetworkImage(post['imageUrl']),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                child: Stack(
                   children: [
-                    // Posts Grid
-                    _buildPostsGrid(posts, accentColor),
-                    // Portfolios List
-                    _buildPortfoliosList(accentColor),
+                    // Category Badge
+                    if (post['category'] != null)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            post['category'],
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            // Content Section
+            Expanded(
+              flex: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      post['title'] ?? '',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2C3E50),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      post['description'] ?? '',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF6C7B7F),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                 ),
               ),
@@ -216,63 +412,74 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildPostsGrid(List<Map<String, dynamic>> posts, Color accentColor) {
-    if (posts.isEmpty) {
-      return Center(
-        child: Text('No posts yet', style: TextStyle(color: Colors.grey[600], fontSize: 16)),
-      );
-    }
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
-      itemCount: posts.length,
-      itemBuilder: (context, i) {
-        return GestureDetector(
-          onTap: () {}, // Open post detail
-          child: Container(
+  Widget _buildEmptyState(String category) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 120,
+            height: 120,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: accentColor.withOpacity(0.08),
-              image: DecorationImage(
-                image: NetworkImage(posts[i]['image']),
-                fit: BoxFit.cover,
-              ),
+              color: const Color(0xFF6C63FF).withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.photo_library_outlined,
+              size: 60,
+              color: Color(0xFF6C63FF),
             ),
           ),
-        );
-      },
+          const SizedBox(height: 24),
+          Text(
+            'No posts in $category yet',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF2C3E50),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Start sharing your work to build your portfolio',
+            style: TextStyle(
+              fontSize: 16,
+              color: Color(0xFF6C7B7F),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildPortfoliosList(Color accentColor) {
+  void _showPostDetails(dynamic post) {
+    // Implement as needed
+  }
+
+  Widget _buildPortfolioCategoryList() {
+    if (categories.isEmpty) {
+      return Center(child: Text('No portfolios yet'));
+    }
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: portfolios.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, i) {
-        final p = portfolios[i];
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+      itemCount: categories.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final category = categories[index];
         return ListTile(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          tileColor: Colors.grey[100],
-          leading: CircleAvatar(
-            backgroundColor: accentColor.withOpacity(0.15),
-            child: Text(p['badge'], style: const TextStyle(fontSize: 20)),
-          ),
-          title: Text(p['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text(p['description'], maxLines: 1, overflow: TextOverflow.ellipsis),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          tileColor: Colors.white,
+          leading: const Icon(Icons.folder_open, color: Color(0xFF6C63FF)),
+          title: Text(category, style: const TextStyle(fontWeight: FontWeight.w600)),
           trailing: const Icon(Icons.arrow_forward_ios, size: 16),
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => PortfolioDetailPage(
-                  portfolio: p,
-                  posts: posts.where((post) => p['posts'].contains(post['id'])).toList(),
-                  accentColor: accentColor,
+                builder: (_) => PortfolioScreen(
+                  user: AppUser.fromMap(userProfile!),
+                  // You may want to pass the category as well if PortfolioScreen supports it
                 ),
               ),
             );
@@ -282,80 +489,3 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     );
   }
 }
-
-class PortfolioDetailPage extends StatelessWidget {
-  final Map<String, dynamic> portfolio;
-  final List<Map<String, dynamic>> posts;
-  final Color accentColor;
-  const PortfolioDetailPage({super.key, required this.portfolio, required this.posts, required this.accentColor});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: IconThemeData(color: accentColor),
-        title: Text(portfolio['name'], style: TextStyle(color: accentColor, fontWeight: FontWeight.bold)),
-      ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: accentColor.withOpacity(0.15),
-                  child: Text(portfolio['badge'], style: const TextStyle(fontSize: 20)),
-                ),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(portfolio['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                    Text('${posts.length} posts', style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              portfolio['description'],
-              style: TextStyle(color: Colors.grey[700], fontSize: 15),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: posts.isEmpty
-                ? Center(child: Text('No posts in this portfolio', style: TextStyle(color: Colors.grey[600], fontSize: 16)))
-                : GridView.builder(
-                    padding: const EdgeInsets.all(12),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                    ),
-                    itemCount: posts.length,
-                    itemBuilder: (context, i) {
-                      return Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          color: accentColor.withOpacity(0.08),
-                          image: DecorationImage(
-                            image: NetworkImage(posts[i]['image']),
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-} 
