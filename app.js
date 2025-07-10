@@ -33,6 +33,8 @@ const userSchema = new mongoose.Schema({
   categories: [String],
   username: String,
   bio: String,
+  followers: { type: [String], default: [] }, // Array of UIDs
+  following: { type: [String], default: [] }, // Array of UIDs
 });
 const User = mongoose.model('User', userSchema);
 
@@ -105,6 +107,87 @@ app.get('/user', async (req, res) => {
   res.json(user);
 });
 
+// Get user profile by UID
+app.get('/user/:uid', async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const user = await User.findOne({ uid }).select('uid name username profileImageUrl bio categories followers following');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    // Return follower/following counts, not full arrays
+    const userObj = user.toObject();
+    userObj.followerCount = userObj.followers ? userObj.followers.length : 0;
+    userObj.followingCount = userObj.following ? userObj.following.length : 0;
+    delete userObj.followers;
+    delete userObj.following;
+    res.json(userObj);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch user profile' });
+  }
+});
+
+// Search users by name or username
+app.get('/users/search', async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query || query.trim() === '') {
+      return res.json([]);
+    }
+    // Case-insensitive, partial match on name or username
+    const users = await User.find({
+      $or: [
+        { name: { $regex: query, $options: 'i' } },
+        { username: { $regex: query, $options: 'i' } },
+      ],
+    }).select('uid name username profileImageUrl bio'); // Only public fields
+    res.json(users);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to search users' });
+  }
+});
+
+// Follow a user
+app.post('/user/:uid/follow', async (req, res) => {
+  try {
+    const targetUid = req.params.uid;
+    const currentUid = req.user.uid;
+    if (targetUid === currentUid) return res.status(400).json({ error: 'Cannot follow yourself' });
+    const targetUser = await User.findOne({ uid: targetUid });
+    const currentUser = await User.findOne({ uid: currentUid });
+    if (!targetUser || !currentUser) return res.status(404).json({ error: 'User not found' });
+    if (targetUser.followers.includes(currentUid)) return res.status(400).json({ error: 'Already following' });
+    targetUser.followers.push(currentUid);
+    currentUser.following.push(targetUid);
+    await targetUser.save();
+    await currentUser.save();
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to follow user' });
+  }
+});
+
+// Unfollow a user
+app.post('/user/:uid/unfollow', async (req, res) => {
+  try {
+    const targetUid = req.params.uid;
+    const currentUid = req.user.uid;
+    if (targetUid === currentUid) return res.status(400).json({ error: 'Cannot unfollow yourself' });
+    const targetUser = await User.findOne({ uid: targetUid });
+    const currentUser = await User.findOne({ uid: currentUid });
+    if (!targetUser || !currentUser) return res.status(404).json({ error: 'User not found' });
+    targetUser.followers = targetUser.followers.filter(uid => uid !== currentUid);
+    currentUser.following = currentUser.following.filter(uid => uid !== targetUid);
+    await targetUser.save();
+    await currentUser.save();
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to unfollow user' });
+  }
+});
+
 // Create a new post
 app.post('/post', async (req, res) => {
   try {
@@ -139,10 +222,39 @@ app.get('/posts', async (req, res) => {
       query.category = category;
     }
     const posts = await Post.find(query).sort({ createdAt: -1 });
-    res.json(posts);
+    // Fetch user profile once
+    const user = await User.findOne({ uid: userId });
+    // Attach user info to each post
+    const postsWithUser = posts.map(post => ({
+      ...post.toObject(),
+      name: user ? user.name : '',
+      username: user ? user.username : '',
+      profileImageUrl: user ? user.profileImageUrl : '',
+    }));
+    res.json(postsWithUser);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch posts' });
+  }
+});
+
+// Fetch posts for any user by UID
+app.get('/posts/user/:uid', async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const posts = await Post.find({ userId: uid }).sort({ createdAt: -1 });
+    // Attach user info to each post
+    const user = await User.findOne({ uid });
+    const postsWithUser = posts.map(post => ({
+      ...post.toObject(),
+      name: user ? user.name : '',
+      username: user ? user.username : '',
+      profileImageUrl: user ? user.profileImageUrl : '',
+    }));
+    res.json(postsWithUser);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch user posts' });
   }
 });
 
