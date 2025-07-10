@@ -107,4 +107,67 @@ class UserService {
   }
 }
 
+  // Create a new post
+  static Future<void> createPost({
+    required String url,
+    required String description,
+    required String category,
+    required String mediaType,
+    required String? idToken,
+    required String? userId,
+    String? subCategory,
+  }) async {
+    final body = {
+      'url': url,
+      'description': description,
+      'category': category,
+      'mediaType': mediaType,
+      'userId': userId,
+    };
+    if (subCategory != null && subCategory.isNotEmpty) {
+      body['subCategory'] = subCategory;
+    }
+    final response = await http.post(
+      Uri.parse('$backendUrl/post'),
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(body),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to create post');
+    }
+  }
+
+  // Fetch all posts for the current user
+  static Future<List<dynamic>> fetchPosts() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final idToken = await user?.getIdToken();
+    final response = await http.get(
+      Uri.parse('$backendUrl/posts'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch posts');
+    }
+  }
+
+  // Fetch posts by category for the current user
+  static Future<List<dynamic>> fetchPostsByCategory(String category) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final idToken = await user?.getIdToken();
+    final response = await http.get(
+      Uri.parse('$backendUrl/posts?category=${Uri.encodeComponent(category)}'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch posts by category');
+    }
+  }
+
 }

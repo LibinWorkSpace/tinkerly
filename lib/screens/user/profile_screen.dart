@@ -5,6 +5,8 @@ import '../auth/login_screen.dart';
 import 'edit_profile_screen.dart';
 import '../../models/user_model.dart';
 import 'portfolio_screen.dart'; // Added import for PortfolioScreen
+import '../../constants/categories.dart';
+import 'package:video_player/video_player.dart';
 
 class ProfileScreen extends StatefulWidget {
   @override
@@ -13,7 +15,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
   Map<String, dynamic>? userProfile;
-  List<dynamic> portfolioPosts = [];
+  List<dynamic> allPosts = [];
   TabController? _tabController;
   List<String> categories = [];
   bool _hasError = false;
@@ -34,17 +36,16 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   Future<void> loadProfileAndPosts() async {
     try {
       final profile = await UserService.fetchUserProfile();
-      final posts = await UserService.fetchMedia();
+      final posts = await UserService.fetchPosts();
       if (!mounted) return;
       final newCategories = _extractCategories(posts);
-      // Only recreate TabController if needed
       if (_tabController == null || _tabController!.length != 2) {
         _tabController?.dispose();
         _tabController = TabController(length: 2, vsync: this);
       }
       setState(() {
         userProfile = profile;
-        portfolioPosts = posts;
+        allPosts = posts;
         categories = newCategories;
         _hasError = false;
         _isLoading = false;
@@ -113,9 +114,25 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           elevation: 0,
           automaticallyImplyLeading: false,
           actions: [
-            IconButton(
+            PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, color: Colors.black),
-              onPressed: () {},
+              onSelected: (value) {
+                if (value == 'logout') {
+                  _logout();
+                } else if (value == 'add_categories') {
+                  _showAddCategoriesDialog();
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'add_categories',
+                  child: Text('Add Categories'),
+                ),
+                const PopupMenuItem(
+                  value: 'logout',
+                  child: Text('Logout'),
+                ),
+              ],
             ),
           ],
           bottom: PreferredSize(
@@ -177,7 +194,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildStatColumn("Posts", portfolioPosts.length.toString()),
+                _buildStatColumn("Posts", allPosts.length.toString()),
                 _verticalDivider(),
                 _buildStatColumn("Followers", "0"),
                 _verticalDivider(),
@@ -262,39 +279,66 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildProfileGrid(Color brandColor) {
-    if (portfolioPosts.isEmpty) {
+    if (allPosts.isEmpty) {
       return Center(child: Text('No posts yet'));
     }
     return GridView.builder(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: 1,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.8,
       ),
-      itemCount: portfolioPosts.length,
+      itemCount: allPosts.length,
       itemBuilder: (context, index) {
-        final post = portfolioPosts[index];
-        return Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-          elevation: 2,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: post['imageUrl'] != null
-                ? Image.network(post['imageUrl'], fit: BoxFit.cover)
-                : Container(color: brandColor.withOpacity(0.08)),
-          ),
-        );
+        final post = allPosts[index];
+        return _buildPostGridCard(post, brandColor);
       },
+    );
+  }
+
+  Widget _buildPostGridCard(dynamic post, Color brandColor) {
+    final isImage = post['mediaType'] == 'image';
+    final isVideo = post['mediaType'] == 'video';
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      elevation: 2,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            isImage
+                ? Image.network(post['url'], fit: BoxFit.cover, width: double.infinity, height: double.infinity)
+                : isVideo
+                    ? _VideoGridPreview(url: post['url'])
+                    : Container(color: brandColor.withOpacity(0.08)),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                color: Colors.black.withOpacity(0.5),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Text(
+                  post['description'] ?? '',
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildPortfolioGrid(String category) {
     final posts = category == 'All'
-        ? portfolioPosts
-        : portfolioPosts.where((p) => p['category'] == category).toList();
+        ? allPosts
+        : allPosts.where((p) => p['category'] == category).toList();
 
     if (posts.isEmpty) {
       return _buildEmptyState(category);
@@ -458,34 +502,196 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildPortfolioCategoryList() {
-    if (categories.isEmpty) {
+    // Use categories from userProfile (registered categories)
+    final registeredCategories = List<String>.from(userProfile?["categories"] ?? []);
+    if (registeredCategories.isEmpty) {
       return Center(child: Text('No portfolios yet'));
     }
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-      itemCount: categories.length,
+      itemCount: registeredCategories.length,
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        final category = categories[index];
+        final category = registeredCategories[index];
         return ListTile(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           tileColor: Colors.white,
           leading: const Icon(Icons.folder_open, color: Color(0xFF6C63FF)),
           title: Text(category, style: const TextStyle(fontWeight: FontWeight.w600)),
           trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => PortfolioScreen(
-                  user: AppUser.fromMap(userProfile!),
-                  // You may want to pass the category as well if PortfolioScreen supports it
-                ),
+          onTap: () async {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              builder: (context) => FutureBuilder<List<dynamic>>(
+                future: UserService.fetchPostsByCategory(category),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final posts = snapshot.data ?? [];
+                  return SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.75,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('$category Portfolio', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: () => Navigator.pop(context),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: posts.isEmpty
+                              ? _buildEmptyState(category)
+                              : GridView.builder(
+                                  padding: const EdgeInsets.all(16),
+                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    crossAxisSpacing: 16,
+                                    mainAxisSpacing: 16,
+                                    childAspectRatio: 0.8,
+                                  ),
+                                  itemCount: posts.length,
+                                  itemBuilder: (context, idx) => _buildPostGridCard(posts[idx], Color(0xFF6C63FF)),
+                                ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             );
           },
         );
       },
     );
+  }
+
+  void _showAddCategoriesDialog() async {
+    final currentCategories = List<String>.from(userProfile?["categories"] ?? []);
+    final availableCategories = skillCategories.where((cat) => !currentCategories.contains(cat)).toList();
+    List<String> selected = [];
+    if (availableCategories.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('No More Categories'),
+          content: const Text('You have already added all available categories.'),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+        ),
+      );
+      return;
+    }
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Add Categories'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView(
+                  shrinkWrap: true,
+                  children: availableCategories.map((cat) {
+                    return CheckboxListTile(
+                      title: Text(cat),
+                      value: selected.contains(cat),
+                      onChanged: (val) {
+                        setState(() {
+                          if (val == true) {
+                            selected.add(cat);
+                          } else {
+                            selected.remove(cat);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: selected.isEmpty
+                      ? null
+                      : () async {
+                          final updatedCategories = [...currentCategories, ...selected];
+                          // Save to backend
+                          await UserService.saveUserProfile(
+                            userProfile!["name"],
+                            userProfile!["email"],
+                            userProfile!["profileImageUrl"],
+                            updatedCategories,
+                            userProfile!["username"],
+                            userProfile!["bio"],
+                          );
+                          // Refresh profile from backend
+                          await loadProfileAndPosts();
+                          Navigator.pop(context);
+                        },
+                  child: const Text('Add'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _VideoGridPreview extends StatefulWidget {
+  final String url;
+  const _VideoGridPreview({required this.url});
+  @override
+  State<_VideoGridPreview> createState() => _VideoGridPreviewState();
+}
+
+class _VideoGridPreviewState extends State<_VideoGridPreview> {
+  late VideoPlayerController _controller;
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.network(widget.url)
+      ..initialize().then((_) {
+        setState(() {
+          _initialized = true;
+        });
+        _controller.setLooping(true);
+        _controller.setVolume(0);
+        _controller.play();
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _initialized
+        ? AspectRatio(
+            aspectRatio: _controller.value.aspectRatio,
+            child: VideoPlayer(_controller),
+          )
+        : Container(color: Colors.black12);
   }
 }
