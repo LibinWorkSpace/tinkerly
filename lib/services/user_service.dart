@@ -170,4 +170,69 @@ class UserService {
     }
   }
 
+  // Fetch another user's public profile by UID
+  static Future<Map<String, dynamic>?> fetchPublicProfile(String uid) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final idToken = await user?.getIdToken();
+    final response = await http.get(
+      Uri.parse('$backendUrl/user/$uid'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    return null;
+  }
+
+  // Follow a user by UID
+  static Future<bool> followUser(String uid) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final idToken = await user?.getIdToken();
+    final response = await http.post(
+      Uri.parse('$backendUrl/user/$uid/follow'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    return response.statusCode == 200;
+  }
+
+  // Unfollow a user by UID
+  static Future<bool> unfollowUser(String uid) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final idToken = await user?.getIdToken();
+    final response = await http.post(
+      Uri.parse('$backendUrl/user/$uid/unfollow'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    return response.statusCode == 200;
+  }
+
+  // Search users by name or username
+  static Future<List<dynamic>> searchUsers(String query) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final idToken = await user?.getIdToken();
+    final response = await http.get(
+      Uri.parse('$backendUrl/users/search?query=${Uri.encodeComponent(query)}'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to search users');
+    }
+  }
+
+  // Fetch posts for a specific user by UID
+  static Future<List<dynamic>> fetchPostsForUser(String uid) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final idToken = await user?.getIdToken();
+    final response = await http.get(
+      Uri.parse('$backendUrl/posts/user/$uid'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch user posts');
+    }
+  }
 }

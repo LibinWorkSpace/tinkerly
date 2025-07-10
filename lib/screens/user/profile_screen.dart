@@ -105,6 +105,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     final brandColor = Color(0xFF4267B2); // Modern blue
     // Debug print for profile image URL
     print('Profile image URL:  [32m${userProfile!["profileImageUrl"]} [0m');
+    // Only show follower/following counts if this is the logged-in user's profile
+    final isOwnProfile = true; // This screen is only for the logged-in user
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: PreferredSize(
@@ -195,10 +197,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _buildStatColumn("Posts", allPosts.length.toString()),
-                _verticalDivider(),
-                _buildStatColumn("Followers", "0"),
-                _verticalDivider(),
-                _buildStatColumn("Following", "0"),
+                if (isOwnProfile) ...[
+                  _verticalDivider(),
+                  _buildStatColumn("Followers", (userProfile!["followerCount"] ?? 0).toString()),
+                  _verticalDivider(),
+                  _buildStatColumn("Following", (userProfile!["followingCount"] ?? 0).toString()),
+                ],
               ],
             ),
             const SizedBox(height: 12),
@@ -651,6 +655,296 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         );
       },
     );
+  }
+}
+
+class PublicProfileScreen extends StatefulWidget {
+  final String uid;
+  const PublicProfileScreen({Key? key, required this.uid}) : super(key: key);
+
+  @override
+  State<PublicProfileScreen> createState() => _PublicProfileScreenState();
+}
+
+class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTickerProviderStateMixin {
+  Map<String, dynamic>? userProfile;
+  List<dynamic> allPosts = [];
+  TabController? _tabController;
+  bool isLoading = true;
+  bool isError = false;
+  bool isFollowing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    loadProfileAndPosts();
+  }
+
+  Future<void> loadProfileAndPosts() async {
+    try {
+      final profile = await UserService.fetchPublicProfile(widget.uid);
+      final posts = await UserService.fetchPostsForUser(widget.uid);
+      // Check if the current user is following this user
+      final currentUser = await UserService.fetchUserProfile();
+      final followingList = currentUser != null && currentUser['following'] != null
+          ? List<String>.from(currentUser['following'])
+          : <String>[];
+      final isUserFollowing = followingList.contains(widget.uid);
+      if (!mounted) return;
+      if (_tabController == null || _tabController!.length != 2) {
+        _tabController?.dispose();
+        _tabController = TabController(length: 2, vsync: this);
+      }
+      setState(() {
+        userProfile = profile;
+        allPosts = posts;
+        isFollowing = isUserFollowing;
+        isError = false;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        isError = true;
+        isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    setState(() { isLoading = true; });
+    bool success;
+    if (isFollowing) {
+      success = await UserService.unfollowUser(widget.uid);
+    } else {
+      success = await UserService.followUser(widget.uid);
+    }
+    if (success) {
+      setState(() {
+        isFollowing = !isFollowing;
+        // Update follower count in UI
+        if (userProfile != null) {
+          int count = userProfile!["followerCount"] ?? 0;
+          userProfile!["followerCount"] = isFollowing ? count + 1 : (count - 1).clamp(0, 999999);
+        }
+      });
+    }
+    setState(() { isLoading = false; });
+  }
+
+  @override
+  void dispose() {
+    _tabController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final brandColor = Color(0xFF4267B2);
+    if (isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: Text('Profile'), backgroundColor: Colors.white, elevation: 0, iconTheme: IconThemeData(color: Colors.black)),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (isError || userProfile == null) {
+      return Scaffold(
+        appBar: AppBar(title: Text('Profile'), backgroundColor: Colors.white, elevation: 0, iconTheme: IconThemeData(color: Colors.black)),
+        body: Center(child: Text('Failed to load profile.')),
+      );
+    }
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: Text(userProfile!["name"] ?? ''),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: IconThemeData(color: Colors.black),
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 16),
+            Center(
+              child: CircleAvatar(
+                radius: 44,
+                backgroundColor: brandColor.withOpacity(0.1),
+                child: (userProfile!["profileImageUrl"] == null || userProfile!["profileImageUrl"].isEmpty)
+                    ? Text(
+                        userProfile!["name"] != null && userProfile!["name"].isNotEmpty
+                            ? userProfile!["name"][0].toUpperCase()
+                            : "N",
+                        style: TextStyle(fontSize: 40, color: brandColor, fontWeight: FontWeight.bold),
+                      )
+                    : ClipOval(
+                        child: Image.network(
+                          userProfile!["profileImageUrl"],
+                          width: 88,
+                          height: 88,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              width: 88,
+                              height: 88,
+                              color: brandColor.withOpacity(0.1),
+                              child: Icon(Icons.broken_image, color: brandColor, size: 40),
+                            );
+                          },
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: Text(
+                userProfile!["name"] ?? '',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.black),
+              ),
+            ),
+            Center(
+              child: Text(
+                "@${userProfile!["username"] ?? "username"}",
+                style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15, color: Colors.black54),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildStatColumn("Posts", allPosts.length.toString()),
+                _verticalDivider(),
+                _buildStatColumn("Followers", (userProfile!["followerCount"] ?? 0).toString()),
+                _verticalDivider(),
+                _buildStatColumn("Following", (userProfile!["followingCount"] ?? 0).toString()),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (userProfile!["bio"] != null && userProfile!["bio"].toString().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                child: Text(
+                  userProfile!["bio"],
+                  style: const TextStyle(fontSize: 15, color: Colors.black87),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: isLoading ? null : _toggleFollow,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isFollowing ? Colors.grey[300] : brandColor,
+                foregroundColor: isFollowing ? Colors.black : Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              ),
+              child: Text(isFollowing ? 'Unfollow' : 'Follow', style: const TextStyle(fontSize: 16)),
+            ),
+            const SizedBox(height: 16),
+            TabBar(
+              controller: _tabController!,
+              indicatorColor: brandColor,
+              indicatorWeight: 3,
+              labelColor: brandColor,
+              unselectedLabelColor: Colors.black26,
+              tabs: const [
+                Tab(icon: Icon(Icons.grid_on)),
+                Tab(icon: Icon(Icons.star_border)),
+              ],
+            ),
+            SizedBox(
+              height: 420,
+              child: TabBarView(
+                controller: _tabController!,
+                children: [
+                  _buildProfileGrid(brandColor),
+                  _buildPortfolioCategoryList(),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatColumn(String label, String value) {
+    return Column(
+      children: [
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 13, color: Colors.black54)),
+      ],
+    );
+  }
+
+  Widget _verticalDivider() {
+    return Container(
+      height: 28,
+      width: 1.5,
+      color: Colors.grey.shade300,
+      margin: const EdgeInsets.symmetric(horizontal: 18),
+    );
+  }
+
+  Widget _buildProfileGrid(Color brandColor) {
+    if (allPosts.isEmpty) {
+      return Center(child: Text('No posts yet'));
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.8,
+      ),
+      itemCount: allPosts.length,
+      itemBuilder: (context, index) {
+        final post = allPosts[index];
+        return _buildPostGridCard(post, brandColor);
+      },
+    );
+  }
+
+  Widget _buildPostGridCard(dynamic post, Color brandColor) {
+    final isImage = post['mediaType'] == 'image';
+    final isVideo = post['mediaType'] == 'video';
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      elevation: 2,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            isImage
+                ? Image.network(post['url'], fit: BoxFit.cover, width: double.infinity, height: double.infinity)
+                : isVideo
+                    ? _VideoGridPreview(url: post['url'])
+                    : Container(color: brandColor.withOpacity(0.08)),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                color: Colors.black.withOpacity(0.5),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Text(
+                  post['description'] ?? '',
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPortfolioCategoryList() {
+    // You can implement this similar to your own profile, or show a message
+    return Center(child: Text('Portfolio categories coming soon...'));
   }
 }
 
