@@ -8,7 +8,8 @@ const Post = require('./models/Post'); // Add this after other model imports
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB connected'))
@@ -68,6 +69,7 @@ app.post('/upload', parser.single('file'), async (req, res) => {
     await media.save();
     res.json(media);
   } catch (err) {
+    console.error('Upload error:', err); // Improved error logging
     res.status(500).json({ error: err.message });
   }
 });
@@ -104,7 +106,11 @@ app.post('/user', async (req, res) => {
 app.get('/user', async (req, res) => {
   const uid = req.user.uid;
   const user = await User.findOne({ uid });
-  res.json(user);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const userObj = user.toObject();
+  userObj.followerCount = userObj.followers ? userObj.followers.length : 0;
+  userObj.followingCount = userObj.following ? userObj.following.length : 0;
+  res.json(userObj);
 });
 
 // Get user profile by UID
@@ -212,6 +218,44 @@ app.post('/post', async (req, res) => {
   }
 });
 
+// DELETE post by ID
+app.delete('/post/:id', async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) {
+      console.error('Post not found:', req.params.id);
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    if (post.userId !== req.user.uid) {
+      console.error('Forbidden: user', req.user.uid, 'tried to delete post owned by', post.userId);
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    // Try to find and delete associated media
+    try {
+      const Media = mongoose.model('Media');
+      const media = await Media.findOne({ url: post.url });
+      if (media) {
+        // Use correct resource type for Cloudinary deletion
+        const resourceType = (media.type === 'image' || media.type === 'video') ? media.type : 'raw';
+        console.log('Deleting associated media from Cloudinary:', media.public_id, 'type:', resourceType);
+        await cloudinary.uploader.destroy(media.public_id, { resource_type: resourceType });
+        await media.deleteOne();
+        console.log('Associated media deleted from DB and Cloudinary.');
+      } else {
+        console.log('No associated media found for post URL:', post.url);
+      }
+    } catch (mediaErr) {
+      console.error('Error deleting associated media:', mediaErr);
+    }
+    await post.deleteOne();
+    console.log('Post deleted:', req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete post error:', err);
+    res.status(500).json({ error: 'Failed to delete post' });
+  }
+});
+
 // Fetch all posts for the current user, or by category if provided
 app.get('/posts', async (req, res) => {
   try {
@@ -255,6 +299,30 @@ app.get('/posts/user/:uid', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch user posts' });
+  }
+});
+
+// Fetch all posts from all users (for home feed)
+app.get('/posts/all', async (req, res) => {
+  try {
+    const posts = await Post.find({}).sort({ createdAt: -1 });
+    // Fetch all users in one go
+    const users = await User.find({});
+    const userMap = {};
+    users.forEach(user => {
+      userMap[user.uid] = user;
+    });
+    // Attach user info to each post
+    const postsWithUser = posts.map(post => ({
+      ...post.toObject(),
+      name: userMap[post.userId]?.name || '',
+      username: userMap[post.userId]?.username || '',
+      profileImageUrl: userMap[post.userId]?.profileImageUrl || '',
+    }));
+    res.json(postsWithUser);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch all posts' });
   }
 });
 
