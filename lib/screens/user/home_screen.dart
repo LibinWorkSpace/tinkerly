@@ -66,7 +66,7 @@ class _HomeFeedState extends State<HomeFeed> {
   @override
   void initState() {
     super.initState();
-    _postsFuture = UserService.fetchPosts();
+    _postsFuture = UserService.fetchAllPosts();
   }
 
   @override
@@ -84,8 +84,8 @@ class _HomeFeedState extends State<HomeFeed> {
         return ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 12),
           itemCount: posts.length,
-          physics: const BouncingScrollPhysics(),
-          cacheExtent: 1000,
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          cacheExtent: 2000,
           itemBuilder: (context, index) {
             final post = posts[index];
             return _InstagramPostCard(post: post);
@@ -102,8 +102,9 @@ class _InstagramPostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isImage = post['mediaType'] == 'image';
-    final isVideo = post['mediaType'] == 'video';
+    final mediaType = (post['mediaType'] ?? '').toString().toLowerCase();
+    final isImage = mediaType == 'image';
+    final isVideo = mediaType == 'video';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -152,7 +153,7 @@ class _InstagramPostCard extends StatelessWidget {
                 ),
               )
             : isVideo
-                ? _FeedVideoPlayer(url: post['url'])
+                ? _FeedVideoPlayerWithFallback(url: post['url'])
                 : Container(height: 320, width: double.infinity, color: Colors.grey[200]),
         // Like/Comment/Time Row
         Padding(
@@ -202,16 +203,17 @@ String _formatPostTime(dynamic createdAt) {
   }
 }
 
-class _FeedVideoPlayer extends StatefulWidget {
+class _FeedVideoPlayerWithFallback extends StatefulWidget {
   final String url;
-  const _FeedVideoPlayer({required this.url});
+  const _FeedVideoPlayerWithFallback({required this.url});
   @override
-  State<_FeedVideoPlayer> createState() => _FeedVideoPlayerState();
+  State<_FeedVideoPlayerWithFallback> createState() => _FeedVideoPlayerWithFallbackState();
 }
 
-class _FeedVideoPlayerState extends State<_FeedVideoPlayer> {
+class _FeedVideoPlayerWithFallbackState extends State<_FeedVideoPlayerWithFallback> {
   late VideoPlayerController _controller;
   bool _initialized = false;
+  bool _error = false;
 
   @override
   void initState() {
@@ -224,6 +226,10 @@ class _FeedVideoPlayerState extends State<_FeedVideoPlayer> {
         _controller.setLooping(true);
         _controller.setVolume(0);
         _controller.play();
+      }).catchError((e) {
+        setState(() {
+          _error = true;
+        });
       });
   }
 
@@ -235,6 +241,13 @@ class _FeedVideoPlayerState extends State<_FeedVideoPlayer> {
 
   @override
   Widget build(BuildContext context) {
+    if (_error) {
+      return Container(
+        height: 320,
+        color: Colors.black12,
+        child: const Center(child: Icon(Icons.videocam_off, size: 60, color: Colors.grey)),
+      );
+    }
     return _initialized
         ? AspectRatio(
             aspectRatio: _controller.value.aspectRatio,
@@ -344,13 +357,19 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                     title: Text(user['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text('@${user['username'] ?? ''}', style: TextStyle(color: Colors.black54)),
                     trailing: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
+                      onPressed: () async {
+                        final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => PublicProfileScreen(uid: user['uid']),
                           ),
                         );
+                        // Refresh the logged-in user's profile if follow/unfollow happened
+                        if (result == true) {
+                          if (profileScreenKey.currentState != null) {
+                            await profileScreenKey.currentState!.loadProfileAndPosts();
+                          }
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: brandColor,

@@ -36,6 +36,30 @@ class _LoginScreenState extends State<LoginScreen> {
         // Print Firebase ID token for Postman use
         String? token = await FirebaseAuth.instance.currentUser?.getIdToken();
         print('FIREBASE_ID_TOKEN: ' + (token ?? 'null'));
+        // Ensure user profile exists in backend
+        try {
+          final profile = await UserService.fetchUserProfile();
+          if (profile == null || profile['email'] == null) {
+            await UserService.saveUserProfile(
+              user.displayName ?? '',
+              user.email ?? '',
+              user.photoURL,
+              [],
+              user.displayName ?? '',
+              null,
+            );
+          }
+        } catch (e) {
+          // If fetch fails, create profile
+          await UserService.saveUserProfile(
+            user.displayName ?? '',
+            user.email ?? '',
+            user.photoURL,
+            [],
+            user.displayName ?? '',
+            null,
+          );
+        }
         Fluttertoast.showToast(msg: "Login successful! 🎉");
         Navigator.pushReplacement(
           context,
@@ -61,7 +85,30 @@ class _LoginScreenState extends State<LoginScreen> {
         // Print Firebase ID token for Postman use
         String? token = await FirebaseAuth.instance.currentUser?.getIdToken();
         print('FIREBASE_ID_TOKEN: ' + (token ?? 'null'));
-        // Check if user exists in our database
+        // Ensure user profile exists in backend
+        try {
+          final profile = await UserService.fetchUserProfile();
+          if (profile == null || profile['email'] == null) {
+            await UserService.saveUserProfile(
+              user.displayName ?? '',
+              user.email ?? '',
+              user.photoURL,
+              [],
+              user.displayName ?? '',
+              null,
+            );
+          }
+        } catch (e) {
+          // If fetch fails, create profile
+          await UserService.saveUserProfile(
+            user.displayName ?? '',
+            user.email ?? '',
+            user.photoURL,
+            [],
+            user.displayName ?? '',
+            null,
+          );
+        }
         Fluttertoast.showToast(msg: "Google Sign-In successful! 🎉");
         Navigator.pushReplacement(
           context,

@@ -235,4 +235,30 @@ class UserService {
       throw Exception('Failed to fetch user posts');
     }
   }
+
+  // Fetch all posts from all users (for home feed)
+  static Future<List<dynamic>> fetchAllPosts() async {
+    final user = FirebaseAuth.instance.currentUser;
+    final idToken = await user?.getIdToken();
+    final response = await http.get(
+      Uri.parse('$backendUrl/posts/all'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch all posts');
+    }
+  }
+
+  // Delete a post by ID
+  static Future<bool> deletePost(String postId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final idToken = await user?.getIdToken();
+    final response = await http.delete(
+      Uri.parse('$backendUrl/post/$postId'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    return response.statusCode == 200;
+  }
 }

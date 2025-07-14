@@ -7,6 +7,9 @@ class CustomTextField extends StatefulWidget {
   final bool isPassword;
   final String? Function(String?)? validator;
   final TextInputType keyboardType;
+  final bool? filled;
+  final Color? fillColor;
+  final Color? borderColor;
 
   const CustomTextField({
     super.key,
@@ -16,6 +19,9 @@ class CustomTextField extends StatefulWidget {
     this.isPassword = false,
     this.validator,
     this.keyboardType = TextInputType.text,
+    this.filled,
+    this.fillColor,
+    this.borderColor,
   });
 
   @override
@@ -35,15 +41,33 @@ class _CustomTextFieldState extends State<CustomTextField> {
       decoration: InputDecoration(
         labelText: widget.label,
         prefixIcon: Icon(widget.icon, color: Colors.redAccent),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: widget.borderColor ?? Colors.grey.shade300,
+          ),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: widget.borderColor ?? Colors.grey.shade300,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: widget.borderColor ?? Colors.redAccent,
+            width: 2,
+          ),
+        ),
         suffixIcon: widget.isPassword
             ? IconButton(
                 icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
                 onPressed: () => setState(() => _obscure = !_obscure),
               )
             : null,
-        filled: true,
-        fillColor: Colors.white,
+        filled: widget.filled ?? true,
+        fillColor: widget.fillColor ?? Colors.white,
       ),
     );
   }

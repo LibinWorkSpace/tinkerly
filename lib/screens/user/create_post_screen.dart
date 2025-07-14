@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:video_player/video_player.dart';
 // Web video preview support
 import 'package:universal_html/html.dart' as html;
+import 'dart:async'; // Added for Completer
 
 class Url {
   static String createObjectUrlFromBlob(html.Blob blob) => html.Url.createObjectUrlFromBlob(blob);
@@ -100,10 +101,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         ),
       ),
     );
+    
     if (picked != null) {
+      bool isVideo = false;
       if (kIsWeb) {
+        final mimeType = picked.mimeType ?? '';
+        isVideo = mimeType.startsWith('video/');
+        debugPrint('Picked file: ${picked.path}, mimeType: $mimeType, isVideo: $isVideo');
         final bytes = await picked.readAsBytes();
-        if (picked.path.endsWith('.mp4')) {
+        if (isVideo) {
           // For web video, create a blob URL
           final blob = html.Blob([bytes], 'video/mp4');
           final url = Url.createObjectUrlFromBlob(blob);
@@ -114,11 +120,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             _mediaFile = null;
             _mediaType = 'video';
           });
+          debugPrint('Set _mediaType to video');
           _videoController?.dispose();
           _videoController = VideoPlayerController.network(_webVideoUrl!)
             ..initialize().then((_) {
               setState(() {});
               _videoController?.setLooping(true);
+            }).catchError((e) {
+              debugPrint('VideoPlayer initialization error: $e');
             });
         } else {
           setState(() {
@@ -128,9 +137,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             _mediaFile = null;
             _mediaType = 'image';
           });
+          debugPrint('Set _mediaType to image');
         }
       } else {
-        if (picked.path.endsWith('.mp4')) {
+        final path = picked.path.toLowerCase();
+        isVideo = path.endsWith('.mp4') || path.endsWith('.mov') || path.endsWith('.webm');
+        debugPrint('Picked file: ${picked.path}, isVideo: $isVideo');
+        if (isVideo) {
           setState(() {
             _mediaFile = File(picked.path);
             _webImageBytes = null;
@@ -138,11 +151,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             _webVideoBlob = null;
             _mediaType = 'video';
           });
+          debugPrint('Set _mediaType to video');
           _videoController?.dispose();
           _videoController = VideoPlayerController.file(_mediaFile!)
             ..initialize().then((_) {
               setState(() {});
               _videoController?.setLooping(true);
+            }).catchError((e) {
+              debugPrint('VideoPlayer initialization error: $e');
             });
         } else {
           setState(() {
@@ -152,6 +168,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             _webVideoBlob = null;
             _mediaType = 'image';
           });
+          debugPrint('Set _mediaType to image');
         }
       }
     }
@@ -166,9 +183,16 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         url = await UserService.uploadBytes(_webImageBytes!, 'post_image.jpg');
       } else if (!kIsWeb && _mediaType == 'image' && _mediaFile != null) {
         url = await UserService.uploadFile(_mediaFile!.path);
-      } else if (kIsWeb && _mediaType == 'video' && _webVideoUrl != null) {
-        final bytes = await _videoController!.dataSource;
-        url = await UserService.uploadBytes(_webImageBytes!, 'post_video.mp4');
+      } else if (kIsWeb && _mediaType == 'video' && _webVideoBlob != null) {
+        // For web video, convert blob to bytes
+        final reader = html.FileReader();
+        final completer = Completer<Uint8List>();
+        reader.readAsArrayBuffer(_webVideoBlob!);
+        reader.onLoadEnd.listen((event) {
+          completer.complete(reader.result as Uint8List);
+        });
+        final bytes = await completer.future;
+        url = await UserService.uploadBytes(bytes, 'post_video.mp4');
       } else if (!kIsWeb && _mediaType == 'video' && _mediaFile != null) {
         url = await UserService.uploadFile(_mediaFile!.path);
       }
@@ -217,48 +241,55 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       return Image.memory(_webImageBytes!, height: 200, width: double.infinity, fit: BoxFit.cover);
     } else if (!kIsWeb && _mediaType == 'image' && _mediaFile != null) {
       return Image.file(_mediaFile!, height: 200, width: double.infinity, fit: BoxFit.cover);
-    } else if (_mediaType == 'video' && _videoController != null && _videoController!.value.isInitialized) {
-      return Stack(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: AspectRatio(
-              aspectRatio: _videoController!.value.aspectRatio,
-              child: VideoPlayer(_videoController!),
-            ),
-          ),
-          Positioned(
-            bottom: 12,
-            right: 12,
-            child: FloatingActionButton(
-              mini: true,
-              backgroundColor: Colors.black54,
-              onPressed: () {
-                setState(() {
-                  if (_videoController!.value.isPlaying) {
-                    _videoController!.pause();
-                  } else {
-                    _videoController!.play();
-                  }
-                });
-              },
-              child: Icon(
-                _videoController!.value.isPlaying ? Icons.pause : Icons.play_arrow,
-                color: Colors.white,
+    } else if (_mediaType == 'video' && _videoController != null) {
+      if (_videoController!.value.isInitialized) {
+        return Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: AspectRatio(
+                aspectRatio: _videoController!.value.aspectRatio,
+                child: VideoPlayer(_videoController!),
               ),
             ),
-          ),
-        ],
-      );
+            Positioned(
+              bottom: 12,
+              right: 12,
+              child: FloatingActionButton(
+                mini: true,
+                backgroundColor: Colors.black54,
+                onPressed: () {
+                  setState(() {
+                    if (_videoController!.value.isPlaying) {
+                      _videoController!.pause();
+                    } else {
+                      _videoController!.play();
+                    }
+                  });
+                },
+                child: Icon(
+                  _videoController!.value.isPlaying ? Icons.pause : Icons.play_arrow,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        );
+      } else if (_videoController!.value.hasError) {
+        return Container(
+          height: 200,
+          color: Colors.black12,
+          child: const Center(child: Icon(Icons.videocam_off, size: 60, color: Colors.grey)),
+        );
+      } else {
+        return Container(
+          height: 200,
+          color: Colors.black12,
+          child: const Center(child: CircularProgressIndicator()),
+        );
+      }
     } else {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          Icon(Icons.add_a_photo, size: 48, color: Colors.grey),
-          SizedBox(height: 8),
-          Text('Tap to select media', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)),
-        ],
-      );
+      return const SizedBox.shrink();
     }
   }
 
