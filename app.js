@@ -274,6 +274,7 @@ app.get('/posts', async (req, res) => {
       name: user ? user.name : '',
       username: user ? user.username : '',
       profileImageUrl: user ? user.profileImageUrl : '',
+      likedBy: post.likedBy || [],
     }));
     res.json(postsWithUser);
   } catch (err) {
@@ -294,6 +295,7 @@ app.get('/posts/user/:uid', async (req, res) => {
       name: user ? user.name : '',
       username: user ? user.username : '',
       profileImageUrl: user ? user.profileImageUrl : '',
+      likedBy: post.likedBy || [],
     }));
     res.json(postsWithUser);
   } catch (err) {
@@ -318,11 +320,55 @@ app.get('/posts/all', async (req, res) => {
       name: userMap[post.userId]?.name || '',
       username: userMap[post.userId]?.username || '',
       profileImageUrl: userMap[post.userId]?.profileImageUrl || '',
+      likedBy: post.likedBy || [],
     }));
     res.json(postsWithUser);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch all posts' });
+  }
+});
+
+// Like a post
+app.post('/post/:id/like', async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const userId = req.user.uid;
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    // Add a likedBy array if not present
+    if (!post.likedBy) post.likedBy = [];
+    if (post.likedBy.includes(userId)) {
+      return res.status(400).json({ error: 'Already liked' });
+    }
+    post.likedBy.push(userId);
+    post.likes = post.likedBy.length;
+    await post.save();
+    res.json({ success: true, likes: post.likes });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to like post' });
+  }
+});
+
+// Unlike a post
+app.post('/post/:id/unlike', async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const userId = req.user.uid;
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    if (!post.likedBy) post.likedBy = [];
+    if (!post.likedBy.includes(userId)) {
+      return res.status(400).json({ error: 'Not liked yet' });
+    }
+    post.likedBy = post.likedBy.filter(uid => uid !== userId);
+    post.likes = post.likedBy.length;
+    await post.save();
+    res.json({ success: true, likes: post.likes });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to unlike post' });
   }
 });
 

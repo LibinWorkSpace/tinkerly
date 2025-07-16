@@ -9,6 +9,7 @@ const PostSchema = new mongoose.Schema({
   userId: { type: String, required: true }, // Firebase UID or your user ID
   createdAt: { type: Date, default: Date.now },
   likes: { type: Number, default: 0 },
+  likedBy: { type: [String], default: [] }, // Array of user UIDs who liked this post
   views: { type: Number, default: 0 },
   comments: [
     {
