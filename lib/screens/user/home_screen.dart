@@ -3,9 +3,18 @@ import 'profile_screen.dart';
 import 'package:tinkerly/screens/user/create_post_screen.dart'; // Add this import
 import 'package:tinkerly/services/user_service.dart';
 import 'package:video_player/video_player.dart';
+import '../../widgets/main_bottom_nav_bar.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class HomeScreen extends StatefulWidget {
+  static final GlobalKey<_HomeScreenState> homeScreenKey = GlobalKey<_HomeScreenState>();
   const HomeScreen({super.key});
+  static void switchToTab(int index) {
+    final state = homeScreenKey.currentState;
+    if (state != null) {
+      state.switchTab(index);
+    }
+  }
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -17,7 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
     HomeFeed(),
     UserSearchScreen(),
     Center(child: Text('Add', style: TextStyle(fontSize: 24))),
-    Center(child: Text('Portfolio', style: TextStyle(fontSize: 24))),
+    Center(child: Text('Categories', style: TextStyle(fontSize: 24))),
     ProfileScreen(),
   ];
 
@@ -35,21 +44,30 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void switchTab(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
+      bottomNavigationBar: MainBottomNavBar(
         currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
-          BottomNavigationBarItem(icon: Icon(Icons.add_box), label: 'Add'),
-          BottomNavigationBarItem(icon: Icon(Icons.folder_special), label: 'Portfolio'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
+        onTap: (index) {
+          if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => CreatePostScreen()),
+            );
+            return;
+          }
+          setState(() {
+            _selectedIndex = index;
+          });
+        },
       ),
     );
   }
@@ -96,12 +114,54 @@ class _HomeFeedState extends State<HomeFeed> {
   }
 }
 
-class _InstagramPostCard extends StatelessWidget {
+class _InstagramPostCard extends StatefulWidget {
   final dynamic post;
   const _InstagramPostCard({required this.post});
 
   @override
+  State<_InstagramPostCard> createState() => _InstagramPostCardState();
+}
+
+class _InstagramPostCardState extends State<_InstagramPostCard> {
+  late int likeCount;
+  late bool isLiked;
+  late String? currentUid;
+  bool likeLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    likeCount = widget.post['likes'] ?? 0;
+    currentUid = FirebaseAuth.instance.currentUser?.uid;
+    isLiked = (widget.post['likedBy'] ?? []).contains(currentUid);
+  }
+
+  void _toggleLike() async {
+    if (likeLoading || currentUid == null) return;
+    setState(() { likeLoading = true; });
+    if (isLiked) {
+      final success = await UserService.unlikePost(widget.post['_id']);
+      if (success) {
+        setState(() {
+          isLiked = false;
+          likeCount = (likeCount - 1).clamp(0, 999999);
+        });
+      }
+    } else {
+      final success = await UserService.likePost(widget.post['_id']);
+      if (success) {
+        setState(() {
+          isLiked = true;
+          likeCount = likeCount + 1;
+        });
+      }
+    }
+    setState(() { likeLoading = false; });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final post = widget.post;
     final mediaType = (post['mediaType'] ?? '').toString().toLowerCase();
     final isImage = mediaType == 'image';
     final isVideo = mediaType == 'video';
@@ -160,7 +220,20 @@ class _InstagramPostCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
-              Icon(Icons.favorite_border, size: 26, color: Colors.grey[700]),
+              GestureDetector(
+                onTap: _toggleLike,
+                child: Row(
+                  children: [
+                    Icon(
+                      isLiked ? Icons.favorite : Icons.favorite_border,
+                      size: 26,
+                      color: isLiked ? Colors.pinkAccent : Colors.grey[700],
+                    ),
+                    const SizedBox(width: 4),
+                    Text('$likeCount'),
+                  ],
+                ),
+              ),
               const SizedBox(width: 18),
               Icon(Icons.mode_comment_outlined, size: 26, color: Colors.grey[700]),
               const Spacer(),

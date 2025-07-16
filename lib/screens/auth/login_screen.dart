@@ -6,6 +6,8 @@ import '../../widgets/custom_button.dart';
 import '../../services/user_service.dart';
 import '../../services/auth_service.dart';
 import '../user/home_screen.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,12 +16,43 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _isGoogleLoading = false;
   final AuthService _authService = AuthService();
+  late AnimationController _animationController;
+  late Animation<double> _logoAnimation;
+
+  // Theme switcher state
+  bool _isDark = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _logoAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.elasticOut,
+    );
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _toggleTheme() {
+    setState(() {
+      _isDark = !_isDark;
+    });
+  }
 
   void _loginUser() async {
     setState(() {
@@ -130,95 +163,204 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isTablet = MediaQuery.of(context).size.width > 600;
+    final backgroundGradient = _isDark
+        ? LinearGradient(
+            colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : LinearGradient(
+            colors: [Color(0xFF667EEA), Color(0xFF64B6FF), Color(0xFFA5FECB)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+    final textColor = _isDark ? Colors.white : Colors.white;
+    final accentColor = _isDark ? Color(0xFF64FFDA) : Color(0xFFFFD700);
+    final inputFillColor = _isDark ? Colors.black.withOpacity(0.2) : Colors.white.withOpacity(0.2);
+    final inputBorderColor = _isDark ? Color(0xFF64FFDA).withOpacity(0.5) : Colors.white.withOpacity(0.5);
+    final buttonColor = accentColor;
+    final googleButtonColor = Colors.white;
+    final googleTextColor = Colors.black87;
+
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFF44336), Color(0xFFFFCDD2)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+        decoration: BoxDecoration(
+          gradient: backgroundGradient,
         ),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Card(
-              elevation: 10,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-              margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              physics: BouncingScrollPhysics(),
               child: Padding(
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const SizedBox(height: 10),
-                    Text(
-                      "Tinkerly",
-                      style: TextStyle(
-                        fontFamily: 'Pacifico',
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red.shade400,
-                        letterSpacing: 1.5,
-                        shadows: [
-                          Shadow(
-                            blurRadius: 8,
-                            color: Colors.red.shade100,
-                            offset: Offset(2, 2),
-                          ),
+                    // Animated Logo
+                    ScaleTransition(
+                      scale: _logoAnimation,
+                      child: Animate(
+                        effects: [
+                          FadeEffect(duration: 600.ms),
+                          ShimmerEffect(duration: 1200.ms, color: accentColor.withOpacity(0.3)),
                         ],
+                        child: Container(
+                          padding: EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: _isDark ? Colors.black.withOpacity(0.2) : Colors.white.withOpacity(0.2),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: accentColor.withOpacity(0.2),
+                                blurRadius: 20,
+                                spreadRadius: 5,
+                              )
+                            ],
+                          ),
+                          child: Text(
+                            "⚡",
+                            style: TextStyle(fontSize: 60),
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      "Welcome Back 👋",
-                      style: TextStyle(fontSize: 20, color: Colors.grey[700], fontWeight: FontWeight.bold),
-                    ),
+                      "Tinkerly",
+                      style: GoogleFonts.poppins(
+                        fontSize: 42,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                        letterSpacing: 1.5,
+                      ),
+                    ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Welcome Back 👋',
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        color: textColor.withOpacity(0.9),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ).animate().fadeIn(duration: 400.ms, delay: 300.ms),
                     const SizedBox(height: 8),
                     Text(
                       'Login to your Tinkerly account',
-                      style: TextStyle(fontSize: 15, color: Colors.grey[600]),
-                    ),
-                    const SizedBox(height: 24),
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        color: textColor.withOpacity(0.8),
+                      ),
+                    ).animate().fadeIn(duration: 400.ms, delay: 400.ms),
+                    const SizedBox(height: 32),
+                    // Email
                     CustomTextField(
                       controller: _emailController,
                       label: 'Email',
-                      icon: Icons.email,
+                      icon: Icons.sms,
                       keyboardType: TextInputType.emailAddress,
-                    ),
+                      fillColor: Colors.white,
+                      borderColor: inputBorderColor,
+                    ).animate().fadeIn(duration: 400.ms, delay: 400.ms),
                     const SizedBox(height: 18),
+                    // Password
                     CustomTextField(
                       controller: _passwordController,
                       label: 'Password',
-                      icon: Icons.lock,
+                      icon: Icons.lock_outline,
                       isPassword: true,
-                    ),
-                    const SizedBox(height: 24),
+                      fillColor: Colors.white,
+                      borderColor: inputBorderColor,
+                    ).animate().fadeIn(duration: 400.ms, delay: 500.ms),
+                    const SizedBox(height: 28),
+                    // Login Button
                     CustomButton(
                       text: "Login",
                       isLoading: _isLoading,
                       onPressed: _isLoading ? null : _loginUser,
-                    ),
-                    const SizedBox(height: 12),
+                      color: const Color(0xFF1976D2),
+                      textColor: Colors.white,
+                      elevation: 8,
+                      borderRadius: 32,
+                      gradient: null,
+                      iconWidget: Icon(Icons.login, color: Colors.white),
+                    ).animate().fadeIn(duration: 400.ms, delay: 600.ms),
+                    const SizedBox(height: 14),
+                    // Divider
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Divider(
+                            color: inputBorderColor,
+                            thickness: 0.5,
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            'or continue with',
+                            style: GoogleFonts.poppins(
+                              color: textColor.withOpacity(0.7),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Divider(
+                            color: inputBorderColor,
+                            thickness: 0.5,
+                          ),
+                        ),
+                      ],
+                    ).animate().fadeIn(duration: 400.ms, delay: 750.ms),
+                    const SizedBox(height: 14),
+                    // Google Button
                     CustomButton(
                       text: "Sign in with Google",
                       color: Colors.white,
-                      textColor: Colors.black87,
+                      textColor: const Color(0xFF1976D2),
                       isLoading: _isGoogleLoading,
                       onPressed: _isGoogleLoading ? null : _handleGoogleSignIn,
-                      icon: Icons.g_mobiledata,
-                    ),
+                      elevation: 4,
+                      borderRadius: 32,
+                      gradient: null,
+                      iconWidget: Icon(Icons.g_mobiledata, color: const Color(0xFF1976D2)),
+                      // No border for this button
+                    ).animate().fadeIn(duration: 400.ms, delay: 700.ms),
                     const SizedBox(height: 18),
+                    // Register link
                     TextButton(
                       onPressed: _goToRegister,
-                      child: const Text("Don't have an account? Register"),
-                    ),
+                      child: Text(
+                        "Don't have an account? Register",
+                        style: GoogleFonts.poppins(
+                          color: const Color(0xFF1976D2),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ).animate().fadeIn(duration: 400.ms, delay: 800.ms),
                   ],
                 ),
               ),
             ),
           ),
+        ),
+      ),
+      floatingActionButton: Animate(
+        effects: [FadeEffect(duration: 400.ms), ScaleEffect(duration: 400.ms)],
+        child: FloatingActionButton(
+          onPressed: _toggleTheme,
+          backgroundColor: Colors.white,
+          elevation: 6,
+          child: Icon(
+            _isDark ? Icons.wb_sunny : Icons.nightlight_round,
+            color: const Color(0xFF1976D2),
+          ),
+          tooltip: _isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
         ),
       ),
     );

@@ -45,7 +45,7 @@ class AuthGate extends StatelessWidget {
         }
         if (snapshot.hasData && snapshot.data != null) {
           // User is signed in
-          return const HomeScreen();
+          return HomeScreen(key: HomeScreen.homeScreenKey);
         }
         // Not signed in
         return const LoginScreen();

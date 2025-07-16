@@ -261,4 +261,26 @@ class UserService {
     );
     return response.statusCode == 200;
   }
+
+  // Like a post by ID
+  static Future<bool> likePost(String postId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final idToken = await user?.getIdToken();
+    final response = await http.post(
+      Uri.parse('$backendUrl/post/$postId/like'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    return response.statusCode == 200;
+  }
+
+  // Unlike a post by ID
+  static Future<bool> unlikePost(String postId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final idToken = await user?.getIdToken();
+    final response = await http.post(
+      Uri.parse('$backendUrl/post/$postId/unlike'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    return response.statusCode == 200;
+  }
 }

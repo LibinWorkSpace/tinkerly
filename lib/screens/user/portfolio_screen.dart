@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:tinkerly/models/user_model.dart';
 import 'package:tinkerly/widgets/custom_button.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../services/user_service.dart';
 
 class PortfolioScreen extends StatefulWidget {
   final AppUser user;
@@ -210,155 +212,120 @@ class _PortfolioScreenState extends State<PortfolioScreen>
     );
   }
 
-  Widget _buildPortfolioCard(PortfolioPost post) {
-    return GestureDetector(
-      onTap: () => _showPostDetails(post),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
+  Widget _buildPortfolioCard(dynamic post) {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final bool isLiked = (post['likedBy'] ?? []).contains(currentUid);
+    int likeCount = post['likes'] ?? 0;
+    return StatefulBuilder(
+      builder: (context, setState) {
+        Future<void> _toggleLike() async {
+          if (isLiked) {
+            final success = await UserService.unlikePost(post['_id']);
+            if (success) {
+              setState(() {
+                post['likedBy'].remove(currentUid);
+                post['likes'] = (post['likes'] ?? 1) - 1;
+              });
+            }
+          } else {
+            final success = await UserService.likePost(post['_id']);
+            if (success) {
+              setState(() {
+                post['likedBy'].add(currentUid);
+                post['likes'] = (post['likes'] ?? 0) + 1;
+              });
+            }
+          }
+        }
+        return GestureDetector(
+          onTap: () => _showPostDetails(post),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Image Section
-            Expanded(
-              flex: 3,
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  image: DecorationImage(
-                    image: NetworkImage(post.imageUrl),
-                    fit: BoxFit.cover,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Image Section
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                      image: DecorationImage(
+                        image: NetworkImage(post['imageUrl'] ?? post['url'] ?? ''),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: GestureDetector(
+                          onTap: _toggleLike,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isLiked ? Icons.favorite : Icons.favorite_border,
+                                size: 18,
+                                color: isLiked ? Colors.pinkAccent : Colors.white,
+                              ),
+                              const SizedBox(width: 2),
+                              Text('${post['likes'] ?? 0}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-                child: Stack(
-                  children: [
-                    // Category Badge
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          post.category,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Stats Overlay
-                    Positioned(
-                      bottom: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.favorite,
-                              color: Colors.white,
-                              size: 12,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${post.likes}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            
-            // Content Section
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      post.title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF2C3E50),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      post.description,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF6C7B7F),
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const Spacer(),
-                    Row(
+                // Content Section
+                Expanded(
+                  flex: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.visibility,
-                          size: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                        const SizedBox(width: 4),
                         Text(
-                          '${post.views}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey.shade600,
+                          post['title'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2C3E50),
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const Spacer(),
+                        const SizedBox(height: 4),
                         Text(
-                          _formatDate(post.date),
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey.shade600,
+                          post['description'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF6C7B7F),
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -411,7 +378,7 @@ class _PortfolioScreenState extends State<PortfolioScreen>
     );
   }
 
-  void _showPostDetails(PortfolioPost post) {
+  void _showPostDetails(dynamic post) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -420,114 +387,161 @@ class _PortfolioScreenState extends State<PortfolioScreen>
     );
   }
 
-  Widget _buildPostDetailsSheet(PortfolioPost post) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.8,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          // Handle
-          Container(
-            margin: const EdgeInsets.only(top: 12),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
-            ),
+  Widget _buildPostDetailsSheet(dynamic post) {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final bool isLiked = (post['likedBy'] ?? []).contains(currentUid);
+    int likeCount = post['likes'] ?? 0;
+    return StatefulBuilder(
+      builder: (context, setState) {
+        Future<void> _toggleLike() async {
+          if (isLiked) {
+            final success = await UserService.unlikePost(post['_id']);
+            if (success) {
+              setState(() {
+                post['likedBy'].remove(currentUid);
+                post['likes'] = (post['likes'] ?? 1) - 1;
+              });
+            }
+          } else {
+            final success = await UserService.likePost(post['_id']);
+            if (success) {
+              setState(() {
+                post['likedBy'].add(currentUid);
+                post['likes'] = (post['likes'] ?? 0) + 1;
+              });
+            }
+          }
+        }
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.8,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-          
-          // Post Image
-          Expanded(
-            flex: 2,
-            child: Container(
-              width: double.infinity,
-              margin: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                image: DecorationImage(
-                  image: NetworkImage(post.imageUrl),
-                  fit: BoxFit.cover,
+          child: Column(
+            children: [
+              // Handle
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            ),
-          ),
-          
-          // Post Details
-          Expanded(
-            flex: 1,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF6C63FF).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          post.category,
-                          style: const TextStyle(
-                            color: Color(0xFF6C63FF),
-                            fontWeight: FontWeight.w600,
-                          ),
+              // Post Image
+              Expanded(
+                flex: 2,
+                child: Stack(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        image: DecorationImage(
+                          image: NetworkImage(post['imageUrl'] ?? post['url'] ?? ''),
+                          fit: BoxFit.cover,
                         ),
                       ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.edit),
-                        onPressed: () {
-                          // Edit post
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete),
-                        onPressed: () {
-                          // Delete post
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    post.title,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2C3E50),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    post.description,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF6C7B7F),
+                    Positioned(
+                      top: 24,
+                      right: 24,
+                      child: GestureDetector(
+                        onTap: _toggleLike,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isLiked ? Icons.favorite : Icons.favorite_border,
+                              size: 24,
+                              color: isLiked ? Colors.pinkAccent : Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            Text('${post['likes'] ?? 0}', style: const TextStyle(color: Colors.white, fontSize: 14)),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      _buildStatItem(Icons.favorite, '${post.likes}'),
-                      const SizedBox(width: 24),
-                      _buildStatItem(Icons.visibility, '${post.views}'),
-                      const SizedBox(width: 24),
-                      _buildStatItem(Icons.calendar_today, _formatDate(post.date)),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+              // Post Details
+              Expanded(
+                flex: 1,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF6C63FF).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              post['category'] ?? '',
+                              style: const TextStyle(
+                                color: Color(0xFF6C63FF),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.edit),
+                            onPressed: () {
+                              // Edit post
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete),
+                            onPressed: () {
+                              // Delete post
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        post['title'] ?? '',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2C3E50),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        post['description'] ?? '',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Color(0xFF6C7B7F),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          _buildStatItem(Icons.favorite, '${post['likes'] ?? 0}'),
+                          const SizedBox(width: 24),
+                          _buildStatItem(Icons.visibility, '${post['views'] ?? 0}'),
+                          const SizedBox(width: 24),
+                          _buildStatItem(Icons.calendar_today, _formatDate(post['date'])),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

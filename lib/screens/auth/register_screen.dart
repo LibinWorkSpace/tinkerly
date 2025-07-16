@@ -12,6 +12,8 @@ import 'package:multi_select_flutter/multi_select_flutter.dart';
 import '../../services/auth_service.dart';
 import '../../services/user_service.dart';
 import '../../models/user_model.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -34,6 +36,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
+  // Add dark mode state and toggle
+  bool _isDark = false;
+  void _toggleTheme() {
+    setState(() {
+      _isDark = !_isDark;
+    });
+  }
 
   Future<void> _pickProfileImage() async {
     if (kIsWeb) {
@@ -138,124 +148,163 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isTablet = MediaQuery.of(context).size.width > 600;
+    final backgroundGradient = _isDark
+        ? const LinearGradient(
+            colors: [Color(0xFF181A20), Color(0xFF23242B)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          )
+        : const LinearGradient(
+            colors: [Color(0xFFF5F7FA), Color(0xFFE3F2FD)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          );
+    final textColor = _isDark ? Colors.white : Colors.black87;
+    final accentColor = _isDark ? const Color(0xFF90CAF9) : const Color(0xFF1976D2);
+    final inputFillColor = Colors.white;
+    final inputBorderColor = _isDark ? const Color(0xFF90CAF9).withOpacity(0.3) : const Color(0xFF1976D2).withOpacity(0.18);
+    final buttonColor = accentColor;
+    final googleButtonColor = Colors.white;
+    final googleTextColor = accentColor;
+
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFFF44336), Color(0xFFFFCDD2)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+        decoration: BoxDecoration(
+          gradient: backgroundGradient,
         ),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Card(
-              elevation: 10,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-              margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
               child: Padding(
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const SizedBox(height: 10),
-                      Text(
-                        "Tinkerly",
-                        style: TextStyle(
-                          fontFamily: 'Pacifico',
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red.shade400,
-                          letterSpacing: 1.5,
-                          shadows: [
-                            Shadow(
-                              blurRadius: 8,
-                              color: Colors.red.shade100,
-                              offset: Offset(2, 2),
-                            ),
-                          ],
-                        ),
+                      // Logo
+                      Animate(
+                        effects: [
+                          FadeEffect(duration: 600.ms),
+                          MoveEffect(duration: 600.ms, begin: const Offset(0, 40)),
+                        ],
+                        child: Text(
+                          "Tinkerly",
+                          style: GoogleFonts.pacifico(
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            color: accentColor,
+                            letterSpacing: 1.5,
+                            shadows: [
+                              Shadow(
+                                blurRadius: 16,
+                                color: accentColor.withOpacity(0.18),
+                                offset: const Offset(2, 2),
+                              ),
+                            ],
+                          ),
+                        ).animate().scaleXY(begin: 0.8, end: 1.0, duration: 900.ms, curve: Curves.easeOutBack, delay: 100.ms).fade(duration: 500.ms),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 18),
                       Text(
                         "Join Tinkerly Today! 🚀",
-                        style: TextStyle(fontSize: 18, color: Colors.grey[700], fontWeight: FontWeight.bold),
-                      ),
+                        style: GoogleFonts.poppins(
+                          fontSize: 22,
+                          color: textColor.withOpacity(0.85),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
                       const SizedBox(height: 20),
                       GestureDetector(
                         onTap: _pickProfileImage,
                         child: CircleAvatar(
                           radius: 45,
-                          backgroundColor: Colors.red.shade50,
+                          backgroundColor: accentColor.withOpacity(0.08),
                           backgroundImage: _profileImageFileOrBytes != null
                               ? (kIsWeb
                                   ? MemoryImage(_profileImageFileOrBytes)
                                   : FileImage(_profileImageFileOrBytes) as ImageProvider)
                               : null,
                           child: _profileImageFileOrBytes == null
-                              ? const Icon(Icons.camera_alt, size: 32, color: Colors.redAccent)
+                              ? Icon(Icons.camera_alt, size: 32, color: accentColor)
                               : null,
                         ),
-                      ),
+                      ).animate().fadeIn(duration: 400.ms, delay: 300.ms),
                       const SizedBox(height: 18),
+                      // Name
                       CustomTextField(
                         controller: _nameController,
                         label: 'Full Name',
                         icon: Icons.person,
                         validator: (value) => value!.isEmpty ? 'Enter your name' : null,
-                      ),
+                        fillColor: Colors.white,
+                        borderColor: inputBorderColor,
+                      ).animate().fadeIn(duration: 400.ms, delay: 400.ms),
                       const SizedBox(height: 14),
+                      // Username
                       CustomTextField(
                         controller: _usernameController,
                         label: 'Username',
                         icon: Icons.alternate_email,
                         validator: (value) => value!.isEmpty ? 'Enter a username' : null,
-                      ),
+                        fillColor: Colors.white,
+                        borderColor: inputBorderColor,
+                      ).animate().fadeIn(duration: 400.ms, delay: 450.ms),
                       const SizedBox(height: 14),
+                      // Email
                       CustomTextField(
                         controller: _emailController,
                         label: 'Email',
                         icon: Icons.email,
                         keyboardType: TextInputType.emailAddress,
                         validator: (value) => value!.contains('@') ? null : 'Enter a valid email',
-                      ),
+                        fillColor: Colors.white,
+                        borderColor: inputBorderColor,
+                      ).animate().fadeIn(duration: 400.ms, delay: 500.ms),
                       const SizedBox(height: 14),
+                      // Password
                       CustomTextField(
                         controller: _passwordController,
                         label: 'Password',
                         icon: Icons.lock,
                         isPassword: true,
                         validator: (value) => value!.length < 6 ? 'Password must be at least 6 characters' : null,
-                      ),
+                        fillColor: Colors.white,
+                        borderColor: inputBorderColor,
+                      ).animate().fadeIn(duration: 400.ms, delay: 550.ms),
                       const SizedBox(height: 18),
                       Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
                           "Select Skill Categories",
-                          style: Theme.of(context).textTheme.titleMedium,
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            color: textColor.withOpacity(0.85),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 8),
                       MultiSelectDialogField<String>(
                         items: skillCategories.map((e) => MultiSelectItem(e, e)).toList(),
                         title: const Text("Categories"),
-                        selectedColor: Colors.redAccent,
+                        selectedColor: accentColor,
                         decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.red.shade200, width: 1),
+                          color: accentColor.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: accentColor.withOpacity(0.2), width: 1),
                         ),
-                        buttonIcon: const Icon(
+                        buttonIcon: Icon(
                           Icons.arrow_drop_down,
-                          color: Colors.redAccent,
+                          color: accentColor,
                         ),
-                        buttonText: const Text(
+                        buttonText: Text(
                           "Select Categories",
-                          style: TextStyle(
+                          style: GoogleFonts.poppins(
                             color: Colors.black54,
                             fontSize: 16,
                           ),
@@ -268,8 +317,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           });
                         },
                         chipDisplay: MultiSelectChipDisplay(
-                          chipColor: Colors.red.shade100,
-                          textStyle: const TextStyle(color: Colors.redAccent),
+                          chipColor: accentColor.withOpacity(0.15),
+                          textStyle: TextStyle(color: accentColor),
                           onTap: (value) {
                             setState(() {
                               _selectedCategories.remove(value);
@@ -282,41 +331,78 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           }
                           return null;
                         },
-                      ),
+                      ).animate().fadeIn(duration: 400.ms, delay: 600.ms),
                       const SizedBox(height: 24),
+                      // Register Button
                       CustomButton(
                         text: "Register",
                         isLoading: _isLoading,
                         onPressed: _isLoading ? null : _register,
-                      ),
-                      const SizedBox(height: 12),
+                        color: accentColor,
+                        textColor: Colors.white,
+                        elevation: 8,
+                        borderRadius: 32,
+                        gradient: null,
+                        iconWidget: Icon(Icons.app_registration, color: Colors.white),
+                      ).animate().fadeIn(duration: 400.ms, delay: 700.ms),
+                      const SizedBox(height: 14),
+                      // Google Button
                       CustomButton(
                         text: "Sign up with Google",
-                        color: Colors.white,
-                        textColor: Colors.black87,
+                        color: googleButtonColor,
+                        textColor: googleTextColor,
                         isLoading: _isGoogleLoading,
                         onPressed: _isGoogleLoading ? null : _handleGoogleSignIn,
-                        icon: Icons.g_mobiledata,
-                      ),
+                        elevation: 4,
+                        borderRadius: 32,
+                        gradient: null,
+                        iconWidget: Icon(Icons.g_mobiledata, color: accentColor),
+                        // No border for this button
+                      ).animate().fadeIn(duration: 400.ms, delay: 800.ms),
                       const SizedBox(height: 18),
+                      // Login link
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Text("Already have an account?"),
+                          Text(
+                            "Already have an account?",
+                            style: GoogleFonts.poppins(
+                              color: _isDark ? Colors.white70 : Colors.black54,
+                            ),
+                          ),
                           TextButton(
                             onPressed: () {
                               Navigator.pushNamed(context, '/login');
                             },
-                            child: const Text("Login"),
+                            child: Text(
+                              "Login",
+                              style: GoogleFonts.poppins(
+                                color: accentColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
                         ],
-                      ),
+                      ).animate().fadeIn(duration: 400.ms, delay: 900.ms),
                     ],
                   ),
                 ),
               ),
             ),
           ),
+        ),
+      ),
+      floatingActionButton: Animate(
+        effects: [FadeEffect(duration: 400.ms), ScaleEffect(duration: 400.ms)],
+        child: FloatingActionButton(
+          onPressed: _toggleTheme,
+          backgroundColor: Colors.white,
+          elevation: 6,
+          child: Icon(
+            _isDark ? Icons.wb_sunny : Icons.nightlight_round,
+            color: accentColor,
+          ),
+          tooltip: _isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
         ),
       ),
     );

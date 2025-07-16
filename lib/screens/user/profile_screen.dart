@@ -8,6 +8,9 @@ import 'portfolio_screen.dart'; // Added import for PortfolioScreen
 import '../../constants/categories.dart';
 import 'package:video_player/video_player.dart';
 import 'user_posts_feed_screen.dart';
+import '../../widgets/main_bottom_nav_bar.dart';
+import 'home_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 final GlobalKey<_ProfileScreenState> profileScreenKey = GlobalKey<_ProfileScreenState>();
 
@@ -248,7 +251,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               unselectedLabelColor: Colors.black26,
               tabs: const [
                 Tab(icon: Icon(Icons.grid_on)),
-                Tab(icon: Icon(Icons.star_border)),
+                Tab(icon: Icon(Icons.category)),
               ],
             ),
             SizedBox(
@@ -322,37 +325,82 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   Widget _buildPostGridCard(dynamic post, Color brandColor) {
     final isImage = post['mediaType'] == 'image';
     final isVideo = post['mediaType'] == 'video';
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
-      elevation: 2,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          children: [
-            isImage
-                ? Image.network(post['url'], fit: BoxFit.cover, width: double.infinity, height: double.infinity)
-                : isVideo
-                    ? _VideoGridPreview(url: post['url'])
-                    : Container(color: brandColor.withOpacity(0.08)),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                color: Colors.black.withOpacity(0.5),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                child: Text(
-                  post['description'] ?? '',
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final bool isLiked = (post['likedBy'] ?? []).contains(currentUid);
+    int likeCount = post['likes'] ?? 0;
+    return StatefulBuilder(
+      builder: (context, setState) {
+        Future<void> _toggleLike() async {
+          if (isLiked) {
+            final success = await UserService.unlikePost(post['_id']);
+            if (success) {
+              setState(() {
+                post['likedBy'].remove(currentUid);
+                post['likes'] = (post['likes'] ?? 1) - 1;
+              });
+            }
+          } else {
+            final success = await UserService.likePost(post['_id']);
+            if (success) {
+              setState(() {
+                post['likedBy'].add(currentUid);
+                post['likes'] = (post['likes'] ?? 0) + 1;
+              });
+            }
+          }
+        }
+        return Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          elevation: 2,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              children: [
+                isImage
+                    ? Image.network(post['url'], fit: BoxFit.cover, width: double.infinity, height: double.infinity)
+                    : isVideo
+                        ? _VideoGridPreview(url: post['url'])
+                        : Container(color: brandColor.withOpacity(0.08)),
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.5),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: _toggleLike,
+                          child: Row(
+                            children: [
+                              Icon(
+                                isLiked ? Icons.favorite : Icons.favorite_border,
+                                size: 18,
+                                color: isLiked ? Colors.pinkAccent : Colors.white,
+                              ),
+                              const SizedBox(width: 2),
+                              Text('${post['likes'] ?? 0}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          post['description'] ?? '',
+                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -849,6 +897,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
   bool isLoading = true;
   bool isError = false;
   bool isFollowing = false;
+  int _selectedIndex = -1; // -1 means not from navbar
 
   @override
   void initState() {
@@ -916,6 +965,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
     super.dispose();
   }
 
+  void _onNavTap(int index) {
+    // Pop to root and pass the tab index to HomeScreen
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    Future.delayed(Duration.zero, () {
+      HomeScreen.switchToTab(index);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final brandColor = Color(0xFF4267B2);
@@ -923,12 +980,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
       return Scaffold(
         appBar: AppBar(title: Text('Profile'), backgroundColor: Colors.white, elevation: 0, iconTheme: IconThemeData(color: Colors.black)),
         body: Center(child: CircularProgressIndicator()),
+        bottomNavigationBar: MainBottomNavBar(currentIndex: 4, onTap: _onNavTap),
       );
     }
     if (isError || userProfile == null) {
       return Scaffold(
         appBar: AppBar(title: Text('Profile'), backgroundColor: Colors.white, elevation: 0, iconTheme: IconThemeData(color: Colors.black)),
         body: Center(child: Text('Failed to load profile.')),
+        bottomNavigationBar: MainBottomNavBar(currentIndex: 4, onTap: _onNavTap),
       );
     }
     return Scaffold(
@@ -1027,7 +1086,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
               unselectedLabelColor: Colors.black26,
               tabs: const [
                 Tab(icon: Icon(Icons.grid_on)),
-                Tab(icon: Icon(Icons.star_border)),
+                Tab(icon: Icon(Icons.category)),
               ],
             ),
             SizedBox(
@@ -1043,6 +1102,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
           ],
         ),
       ),
+      bottomNavigationBar: MainBottomNavBar(currentIndex: 4, onTap: _onNavTap),
     );
   }
 
@@ -1088,37 +1148,82 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
   Widget _buildPostGridCard(dynamic post, Color brandColor) {
     final isImage = post['mediaType'] == 'image';
     final isVideo = post['mediaType'] == 'video';
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
-      elevation: 2,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          children: [
-            isImage
-                ? Image.network(post['url'], fit: BoxFit.cover, width: double.infinity, height: double.infinity)
-                : isVideo
-                    ? _VideoGridPreview(url: post['url'])
-                    : Container(color: brandColor.withOpacity(0.08)),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                color: Colors.black.withOpacity(0.5),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                child: Text(
-                  post['description'] ?? '',
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final bool isLiked = (post['likedBy'] ?? []).contains(currentUid);
+    int likeCount = post['likes'] ?? 0;
+    return StatefulBuilder(
+      builder: (context, setState) {
+        Future<void> _toggleLike() async {
+          if (isLiked) {
+            final success = await UserService.unlikePost(post['_id']);
+            if (success) {
+              setState(() {
+                post['likedBy'].remove(currentUid);
+                post['likes'] = (post['likes'] ?? 1) - 1;
+              });
+            }
+          } else {
+            final success = await UserService.likePost(post['_id']);
+            if (success) {
+              setState(() {
+                post['likedBy'].add(currentUid);
+                post['likes'] = (post['likes'] ?? 0) + 1;
+              });
+            }
+          }
+        }
+        return Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          elevation: 2,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              children: [
+                isImage
+                    ? Image.network(post['url'], fit: BoxFit.cover, width: double.infinity, height: double.infinity)
+                    : isVideo
+                        ? _VideoGridPreview(url: post['url'])
+                        : Container(color: brandColor.withOpacity(0.08)),
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    color: Colors.black.withOpacity(0.5),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: _toggleLike,
+                          child: Row(
+                            children: [
+                              Icon(
+                                isLiked ? Icons.favorite : Icons.favorite_border,
+                                size: 18,
+                                color: isLiked ? Colors.pinkAccent : Colors.white,
+                              ),
+                              const SizedBox(width: 2),
+                              Text('${post['likes'] ?? 0}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          post['description'] ?? '',
+                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

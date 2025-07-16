@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/user_service.dart';
 
 class UserPostsFeedScreen extends StatefulWidget {
@@ -65,37 +66,82 @@ class _UserPostsFeedScreenState extends State<UserPostsFeedScreen> {
           final post = _posts[index];
           final isImage = post['mediaType'] == 'image';
           final isVideo = post['mediaType'] == 'video';
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ListTile(
-                  title: Text(post['username'] ?? ''),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'delete') _deletePost(post['_id']);
-                    },
-                    itemBuilder: (context) => [
-                      PopupMenuItem(value: 'delete', child: Text('Delete')),
-                    ],
-                  ),
+          final currentUid = FirebaseAuth.instance.currentUser?.uid;
+          final bool isLiked = (post['likedBy'] ?? []).contains(currentUid);
+          int likeCount = post['likes'] ?? 0;
+          return StatefulBuilder(
+            builder: (context, setState) {
+              Future<void> _toggleLike() async {
+                if (isLiked) {
+                  final success = await UserService.unlikePost(post['_id']);
+                  if (success) {
+                    setState(() {
+                      post['likedBy'].remove(currentUid);
+                      post['likes'] = (post['likes'] ?? 1) - 1;
+                    });
+                  }
+                } else {
+                  final success = await UserService.likePost(post['_id']);
+                  if (success) {
+                    setState(() {
+                      post['likedBy'].add(currentUid);
+                      post['likes'] = (post['likes'] ?? 0) + 1;
+                    });
+                  }
+                }
+              }
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ListTile(
+                      title: Text(post['username'] ?? ''),
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'delete') _deletePost(post['_id']);
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem(value: 'delete', child: Text('Delete')),
+                        ],
+                      ),
+                    ),
+                    isImage
+                        ? Image.network(post['url'], width: double.infinity, fit: BoxFit.cover)
+                        : isVideo
+                            ? Container(
+                                height: 320,
+                                color: Colors.black12,
+                                child: Center(child: Icon(Icons.videocam, size: 60)),
+                              )
+                            : Container(height: 320, color: Colors.grey[200]),
+                    Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Row(
+                        children: [
+                          GestureDetector(
+                            onTap: _toggleLike,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isLiked ? Icons.favorite : Icons.favorite_border,
+                                  size: 22,
+                                  color: isLiked ? Colors.pinkAccent : Colors.grey[700],
+                                ),
+                                const SizedBox(width: 4),
+                                Text('${post['likes'] ?? 0}'),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 18),
+                          Expanded(child: Text(post['description'] ?? '', style: TextStyle(fontSize: 15))),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                isImage
-                    ? Image.network(post['url'], width: double.infinity, fit: BoxFit.cover)
-                    : isVideo
-                        ? Container(
-                            height: 320,
-                            color: Colors.black12,
-                            child: Center(child: Icon(Icons.videocam, size: 60)),
-                          )
-                        : Container(height: 320, color: Colors.grey[200]),
-                Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Text(post['description'] ?? '', style: TextStyle(fontSize: 15)),
-                ),
-              ],
-            ),
+              );
+            },
           );
         },
       ),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 class CustomTextField extends StatefulWidget {
   final TextEditingController controller;
@@ -30,44 +32,82 @@ class CustomTextField extends StatefulWidget {
 
 class _CustomTextFieldState extends State<CustomTextField> {
   bool _obscure = true;
+  bool _isFocused = false;
+  late FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+    _focusNode.addListener(() {
+      setState(() {
+        _isFocused = _focusNode.hasFocus;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      controller: widget.controller,
-      obscureText: widget.isPassword ? _obscure : false,
-      validator: widget.validator,
-      keyboardType: widget.keyboardType,
-      decoration: InputDecoration(
-        labelText: widget.label,
-        prefixIcon: Icon(widget.icon, color: Colors.redAccent),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: widget.borderColor ?? Colors.grey.shade300,
+    return AnimatedContainer(
+      duration: 250.ms,
+      curve: Curves.easeInOut,
+      decoration: BoxDecoration(
+        boxShadow: _isFocused
+            ? [
+                BoxShadow(
+                  color: (widget.borderColor ?? Colors.redAccent).withOpacity(0.18),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : [],
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: TextFormField(
+        focusNode: _focusNode,
+        controller: widget.controller,
+        obscureText: widget.isPassword ? _obscure : false,
+        validator: widget.validator,
+        keyboardType: widget.keyboardType,
+        style: GoogleFonts.poppins(fontSize: 16),
+        decoration: InputDecoration(
+          labelText: widget.label,
+          labelStyle: GoogleFonts.poppins(fontWeight: FontWeight.w500, color: Colors.grey[700]),
+          prefixIcon: Icon(widget.icon, color: Colors.redAccent),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(
+              color: widget.borderColor ?? Colors.grey.shade300,
+            ),
           ),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: widget.borderColor ?? Colors.grey.shade300,
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(
+              color: widget.borderColor ?? Colors.grey.shade300,
+            ),
           ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: widget.borderColor ?? Colors.redAccent,
-            width: 2,
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(
+              color: widget.borderColor ?? const Color.fromARGB(255, 255, 82, 82),
+              width: 2,
+            ),
           ),
+          suffixIcon: widget.isPassword
+              ? IconButton(
+                  icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                )
+              : null,
+          filled: widget.filled ?? true,
+          fillColor: widget.fillColor ?? Colors.white,
         ),
-        suffixIcon: widget.isPassword
-            ? IconButton(
-                icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
-                onPressed: () => setState(() => _obscure = !_obscure),
-              )
-            : null,
-        filled: widget.filled ?? true,
-        fillColor: widget.fillColor ?? Colors.white,
       ),
     );
   }
