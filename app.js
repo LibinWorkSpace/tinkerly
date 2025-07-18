@@ -5,6 +5,23 @@ const cors = require('cors');
 const admin = require('./firebase');
 const { parser, cloudinary } = require('./cloudinary');
 const Post = require('./models/Post'); // Add this after other model imports
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+
+// In-memory OTP store: { email: { otp, expires } }
+const otpStore = {};
+
+// In-memory OTP store for registration: { email: { otp, expires } }
+const registrationOtpStore = {};
+
+// Configure nodemailer (use your SMTP credentials)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
 const app = express();
 app.use(cors());
@@ -30,6 +47,7 @@ const userSchema = new mongoose.Schema({
   uid: { type: String, unique: true },
   name: String,
   email: String,
+  phone: String, // <-- Add phone field
   profileImageUrl: String,
   categories: [String],
   username: String,
@@ -39,7 +57,113 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// Firebase Auth middleware
+// Helper function to send SMS (placeholder, replace with real SMS API like Twilio)
+async function sendSms(phone, message) {
+  // TODO: Integrate with SMS provider (e.g., Twilio)
+  console.log(`Sending SMS to ${phone}: ${message}`);
+  return true;
+}
+
+// Update send OTP endpoint to support email or phone
+app.post('/auth/send-otp', async (req, res) => {
+  const { email, method } = req.body;
+  let user;
+  if (method === 'phone') {
+    // Find user by email to get phone
+    if (!email || !email.includes('@')) return res.status(400).json({ error: 'Invalid email' });
+    user = await User.findOne({ email });
+    if (!user || !user.phone) return res.status(404).json({ error: 'No user with this email or phone' });
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore[user.phone] = { otp, expires: Date.now() + 10 * 60 * 1000 };
+    try {
+      await sendSms(user.phone, `Your OTP for password reset is: ${otp}`);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to send SMS' });
+    }
+  } else {
+    // Default: send to email
+    if (!email || !email.includes('@')) return res.status(400).json({ error: 'Invalid email' });
+    user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ error: 'No user with this email' });
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore[email] = { otp, expires: Date.now() + 10 * 60 * 1000 };
+    try {
+      await transporter.sendMail({
+        from: process.env.SMTP_USER,
+        to: email,
+        subject: 'Tinkerly Password Reset OTP',
+        text: `Your OTP for password reset is: ${otp}`,
+      });
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to send email' });
+    }
+  }
+});
+
+app.post('/auth/reset-password', async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword) return res.status(400).json({ error: 'Missing fields' });
+  const record = otpStore[email];
+  if (!record || record.otp !== otp || Date.now() > record.expires) {
+    return res.status(400).json({ error: 'Invalid or expired OTP' });
+  }
+  try {
+    // Find user in Firebase Auth and update password
+    const userRecord = await admin.auth().getUserByEmail(email);
+    await admin.auth().updateUser(userRecord.uid, { password: newPassword });
+    delete otpStore[email];
+    res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to update password in Firebase' });
+  }
+});
+
+// Send registration OTP endpoint
+app.post('/auth/send-registration-otp', async (req, res) => {
+  const { email } = req.body;
+  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Invalid email' });
+  const user = await User.findOne({ email });
+  if (user) return res.status(409).json({ error: 'Email already registered' });
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  registrationOtpStore[email] = { otp, expires: Date.now() + 10 * 60 * 1000 };
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_USER,
+      to: email,
+      subject: 'Tinkerly Registration OTP',
+      text: `Your OTP for registration is: ${otp}`,
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to send email' });
+  }
+});
+
+// Verify registration OTP endpoint
+app.post('/auth/verify-registration-otp', async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) return res.status(400).json({ error: 'Missing fields' });
+  const record = registrationOtpStore[email];
+  if (!record || record.otp !== otp || Date.now() > record.expires) {
+    return res.status(400).json({ error: 'Invalid or expired OTP' });
+  }
+  delete registrationOtpStore[email];
+  res.json({ success: true });
+});
+
+// Public endpoint to check if email exists
+app.get('/user/exists', async (req, res) => {
+  const { email } = req.query;
+  if (!email || typeof email !== 'string' || !email.includes('@')) {
+    return res.status(400).json({ exists: false });
+  }
+  const user = await User.findOne({ email });
+  res.json({ exists: !!user });
+});
+
+// Firebase Auth middleware (keep this after the public routes)
 app.use(async (req, res, next) => {
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
     const idToken = req.headers.authorization.split('Bearer ')[1];
@@ -92,11 +216,11 @@ app.delete('/media/:id', async (req, res) => {
 
 // Create or update user profile
 app.post('/user', async (req, res) => {
-  const { name, email, profileImageUrl, categories, username, bio } = req.body;
+  const { name, email, phone, profileImageUrl, categories, username, bio } = req.body;
   const uid = req.user.uid;
   const user = await User.findOneAndUpdate(
     { uid },
-    { name, email, profileImageUrl, categories, username, bio },
+    { name, email, phone, profileImageUrl, categories, username, bio },
     { upsert: true, new: true }
   );
   res.json(user);
