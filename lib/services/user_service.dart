@@ -4,16 +4,15 @@ import 'dart:typed_data'; // 👈 This fixes the Uint8List error
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
+import '../constants/api_constants.dart';
 
 class UserService {
-  static const String backendUrl = 'http://localhost:5000';
-
   // Save or update user profile
-  static Future<void> saveUserProfile(String name, String email, String? profileImageUrl, List<String> categories, String username, String? bio) async {
+  static Future<void> saveUserProfile(String name, String email, String? profileImageUrl, List<String> categories, String username, String? bio, {String? phone}) async {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.post(
-      Uri.parse('$backendUrl/user'),
+      Uri.parse('${ApiConstants.baseUrl}/user'),
       headers: {
         'Authorization': 'Bearer $idToken',
         'Content-Type': 'application/json',
@@ -21,6 +20,7 @@ class UserService {
       body: jsonEncode({
         'name': name,
         'email': email,
+        'phone': phone,
         'profileImageUrl': profileImageUrl,
         'categories': categories,
         'username': username,
@@ -37,7 +37,7 @@ class UserService {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.get(
-      Uri.parse('$backendUrl/user'),
+      Uri.parse('${ApiConstants.baseUrl}/user'),
       headers: {'Authorization': 'Bearer $idToken'},
     );
     if (response.statusCode == 200) {
@@ -51,7 +51,7 @@ class UserService {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.get(
-      Uri.parse('$backendUrl/media'),
+      Uri.parse('${ApiConstants.baseUrl}/media'),
       headers: {'Authorization': 'Bearer $idToken'},
     );
     if (response.statusCode == 200) {
@@ -65,7 +65,7 @@ class UserService {
   static Future<String?> uploadFile(String filePath) async {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
-    final request = http.MultipartRequest('POST', Uri.parse('$backendUrl/upload'));
+    final request = http.MultipartRequest('POST', Uri.parse('${ApiConstants.baseUrl}/upload'));
     request.headers['Authorization'] = 'Bearer $idToken';
     request.files.add(await http.MultipartFile.fromPath('file', filePath));
     final response = await request.send();
@@ -83,7 +83,7 @@ class UserService {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.delete(
-      Uri.parse('$backendUrl/media/$mediaId'),
+      Uri.parse('${ApiConstants.baseUrl}/media/$mediaId'),
       headers: {'Authorization': 'Bearer $idToken'},
     );
     return response.statusCode == 200;
@@ -92,7 +92,7 @@ class UserService {
   final user = FirebaseAuth.instance.currentUser;
   final idToken = await user?.getIdToken();
 
-  final request = http.MultipartRequest('POST', Uri.parse('$backendUrl/upload'));
+  final request = http.MultipartRequest('POST', Uri.parse('${ApiConstants.baseUrl}/upload'));
   request.headers['Authorization'] = 'Bearer $idToken';
   request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
 
@@ -128,7 +128,7 @@ class UserService {
       body['subCategory'] = subCategory;
     }
     final response = await http.post(
-      Uri.parse('$backendUrl/post'),
+      Uri.parse('${ApiConstants.baseUrl}/post'),
       headers: {
         'Authorization': 'Bearer $idToken',
         'Content-Type': 'application/json',
@@ -145,7 +145,7 @@ class UserService {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.get(
-      Uri.parse('$backendUrl/posts'),
+      Uri.parse('${ApiConstants.baseUrl}/posts'),
       headers: {'Authorization': 'Bearer $idToken'},
     );
     if (response.statusCode == 200) {
@@ -160,7 +160,7 @@ class UserService {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.get(
-      Uri.parse('$backendUrl/posts?category=${Uri.encodeComponent(category)}'),
+      Uri.parse('${ApiConstants.baseUrl}/posts?category=${Uri.encodeComponent(category)}'),
       headers: {'Authorization': 'Bearer $idToken'},
     );
     if (response.statusCode == 200) {
@@ -175,7 +175,7 @@ class UserService {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.get(
-      Uri.parse('$backendUrl/user/$uid'),
+      Uri.parse('${ApiConstants.baseUrl}/user/$uid'),
       headers: {'Authorization': 'Bearer $idToken'},
     );
     if (response.statusCode == 200) {
@@ -189,7 +189,7 @@ class UserService {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.post(
-      Uri.parse('$backendUrl/user/$uid/follow'),
+      Uri.parse('${ApiConstants.baseUrl}/user/$uid/follow'),
       headers: {'Authorization': 'Bearer $idToken'},
     );
     return response.statusCode == 200;
@@ -200,7 +200,7 @@ class UserService {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.post(
-      Uri.parse('$backendUrl/user/$uid/unfollow'),
+      Uri.parse('${ApiConstants.baseUrl}/user/$uid/unfollow'),
       headers: {'Authorization': 'Bearer $idToken'},
     );
     return response.statusCode == 200;
@@ -211,7 +211,7 @@ class UserService {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.get(
-      Uri.parse('$backendUrl/users/search?query=${Uri.encodeComponent(query)}'),
+      Uri.parse('${ApiConstants.baseUrl}/users/search?query=${Uri.encodeComponent(query)}'),
       headers: {'Authorization': 'Bearer $idToken'},
     );
     if (response.statusCode == 200) {
@@ -226,7 +226,7 @@ class UserService {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.get(
-      Uri.parse('$backendUrl/posts/user/$uid'),
+      Uri.parse('${ApiConstants.baseUrl}/posts/user/$uid'),
       headers: {'Authorization': 'Bearer $idToken'},
     );
     if (response.statusCode == 200) {
@@ -241,7 +241,7 @@ class UserService {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.get(
-      Uri.parse('$backendUrl/posts/all'),
+      Uri.parse('${ApiConstants.baseUrl}/posts/all'),
       headers: {'Authorization': 'Bearer $idToken'},
     );
     if (response.statusCode == 200) {
@@ -256,7 +256,7 @@ class UserService {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.delete(
-      Uri.parse('$backendUrl/post/$postId'),
+      Uri.parse('${ApiConstants.baseUrl}/post/$postId'),
       headers: {'Authorization': 'Bearer $idToken'},
     );
     return response.statusCode == 200;
@@ -267,7 +267,7 @@ class UserService {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.post(
-      Uri.parse('$backendUrl/post/$postId/like'),
+      Uri.parse('${ApiConstants.baseUrl}/post/$postId/like'),
       headers: {'Authorization': 'Bearer $idToken'},
     );
     return response.statusCode == 200;
@@ -278,8 +278,60 @@ class UserService {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
     final response = await http.post(
-      Uri.parse('$backendUrl/post/$postId/unlike'),
+      Uri.parse('${ApiConstants.baseUrl}/post/$postId/unlike'),
       headers: {'Authorization': 'Bearer $idToken'},
+    );
+    return response.statusCode == 200;
+  }
+
+  // Send OTP for password reset (method: 'email' or 'phone')
+  static Future<bool> sendPasswordResetOtp(String email, {String method = 'email'}) async {
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}/auth/send-otp'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'method': method}),
+    );
+    return response.statusCode == 200;
+  }
+
+  // Reset password with OTP
+  static Future<bool> resetPasswordWithOtp(String email, String otp, String newPassword) async {
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}/auth/reset-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'otp': otp, 'newPassword': newPassword}),
+    );
+    return response.statusCode == 200;
+  }
+
+  // Check if email exists
+  static Future<bool> checkEmailExists(String email) async {
+    final response = await http.get(
+      Uri.parse('${ApiConstants.baseUrl}/user/exists?email=${Uri.encodeComponent(email)}'),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['exists'] == true;
+    }
+    return false;
+  }
+
+  // Send registration OTP
+  static Future<bool> sendRegistrationOtp(String email) async {
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}/auth/send-registration-otp'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
+    return response.statusCode == 200;
+  }
+
+  // Verify registration OTP
+  static Future<bool> verifyRegistrationOtp(String email, String otp) async {
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}/auth/verify-registration-otp'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'otp': otp}),
     );
     return response.statusCode == 200;
   }

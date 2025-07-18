@@ -14,6 +14,7 @@ import '../../services/user_service.dart';
 import '../../models/user_model.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -36,6 +37,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
 
   // Add dark mode state and toggle
   bool _isDark = false;
@@ -43,6 +45,144 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() {
       _isDark = !_isDark;
     });
+  }
+
+  final FocusNode _emailFocusNode = FocusNode();
+  String? _emailErrorText;
+  bool _isEmailVerified = false;
+  TextEditingController _otpController = TextEditingController();
+
+  // Add state for phone verification
+  String? _phoneVerificationId;
+  bool _isPhoneVerified = false;
+
+  // Show verification method dialog
+  Future<String?> _showVerificationMethodDialog() async {
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Verify your account'),
+        content: const Text('Choose how you want to verify your account:'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'email'),
+            child: const Text('Via Gmail'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'phone'),
+            child: const Text('Via Phone'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Show attractive OTP entry dialog
+  Future<bool> _showOtpDialog({required String method, required Future<bool> Function(String otp) onVerify}) async {
+    final TextEditingController otpController = TextEditingController();
+    bool verified = false;
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            Icon(Icons.verified, color: Colors.blueAccent),
+            const SizedBox(width: 8),
+            Text('Enter OTP'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              method == 'email'
+                  ? 'An OTP has been sent to your email.'
+                  : 'An OTP has been sent to your phone.',
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.07),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TextField(
+                controller: otpController,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 22, letterSpacing: 8, fontWeight: FontWeight.bold),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  hintText: 'Enter OTP',
+                  hintStyle: TextStyle(letterSpacing: 4),
+                ),
+                maxLength: 6,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: Colors.blueAccent,
+            ),
+            onPressed: () async {
+              final otp = otpController.text.trim();
+              if (otp.isEmpty) return;
+              verified = await onVerify(otp);
+              if (verified) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Verification successful!')),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Invalid OTP. Try again.')),
+                );
+              }
+            },
+            child: const Text('Verify'),
+          ),
+        ],
+      ),
+    );
+    return verified;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _emailFocusNode.addListener(() async {
+      if (!_emailFocusNode.hasFocus) {
+        final email = _emailController.text.trim();
+        if (email.isEmpty || !email.contains('@')) {
+          setState(() {
+            _emailErrorText = 'Please enter a valid email address.';
+          });
+          return;
+        }
+        // Call backend to check if email is already registered
+        final exists = await UserService.checkEmailExists(email);
+        setState(() {
+          _emailErrorText = exists ? 'Email is already registered.' : null;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _emailFocusNode.dispose();
+    super.dispose();
   }
 
   Future<void> _pickProfileImage() async {
@@ -64,26 +204,152 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  Future<bool> _sendAndVerifyOtpOnRegister() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() { _emailErrorText = 'Please enter a valid email address.'; });
+      return false;
+    }
+    final sent = await UserService.sendRegistrationOtp(email);
+    if (!sent) {
+      setState(() { _emailErrorText = 'Failed to send OTP. Try another email.'; });
+      return false;
+    }
+    bool verified = false;
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Verify Email'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('An OTP has been sent to $email.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _otpController,
+              decoration: const InputDecoration(labelText: 'Enter OTP'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final otp = _otpController.text.trim();
+              if (otp.isEmpty) return;
+              verified = await UserService.verifyRegistrationOtp(email, otp);
+              if (verified) {
+                setState(() { _isEmailVerified = true; });
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Email verified!')),
+                );
+              } else {
+                setState(() { _isEmailVerified = false; });
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Invalid OTP. Try again.')),
+                );
+              }
+            },
+            child: const Text('Verify'),
+          ),
+        ],
+      ),
+    );
+    return verified;
+  }
+
+  // Refactored registration flow
   void _register() async {
     if (!_formKey.currentState!.validate() || _selectedCategories.isEmpty) return;
     setState(() => _isLoading = true);
+    final method = await _showVerificationMethodDialog();
+    if (method == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
+    bool verified = false;
+    if (method == 'email') {
+      // Email OTP logic (existing)
+      final email = _emailController.text.trim();
+      final sent = await UserService.sendRegistrationOtp(email);
+      if (!sent) {
+        setState(() { _emailErrorText = 'Failed to send OTP. Try another email.'; _isLoading = false; });
+        return;
+      }
+      verified = await _showOtpDialog(
+        method: 'email',
+        onVerify: (otp) async => await UserService.verifyRegistrationOtp(email, otp),
+      );
+      setState(() { _isEmailVerified = verified; });
+    } else if (method == 'phone') {
+      // Phone OTP logic
+      final phone = _phoneController.text.trim();
+      if (phone.isEmpty || !RegExp(r'^\+?[0-9]{7,15}').hasMatch(phone)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a valid phone number.')),
+        );
+        setState(() => _isLoading = false);
+        return;
+      }
+      await _authService.verifyPhoneNumber(
+        phoneNumber: phone,
+        codeSent: (verificationId, resendToken) async {
+          _phoneVerificationId = verificationId;
+          verified = await _showOtpDialog(
+            method: 'phone',
+            onVerify: (otp) async {
+              final user = await _authService.signInWithPhoneOtp(verificationId, otp);
+              return user != null;
+            },
+          );
+          setState(() { _isPhoneVerified = verified; });
+          if (!verified) setState(() => _isLoading = false);
+        },
+        verificationFailed: (error) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Phone verification failed: ${error.message}')),
+          );
+          setState(() => _isLoading = false);
+        },
+        codeAutoRetrievalTimeout: (verificationId) {
+          _phoneVerificationId = verificationId;
+        },
+        verificationCompleted: (credential) async {
+          // Auto sign-in (optional)
+          final user = await FirebaseAuth.instance.signInWithCredential(credential);
+          if (user != null) {
+            setState(() { _isPhoneVerified = true; });
+            verified = true;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Phone automatically verified!')),
+            );
+          }
+        },
+      );
+      // If not verified by dialog, return
+      if (!verified) return;
+    }
+    if (!verified) {
+      setState(() => _isLoading = false);
+      return;
+    }
     try {
-      print('Starting registration...');
       final authService = AuthService();
       final user = await authService.registerWithEmail(
         _emailController.text.trim(),
         _passwordController.text,
       );
-      print('Firebase user: ' + user.toString());
       if (user != null) {
         String? imageUrl;
         if (_profileImageFileOrBytes != null) {
-          print('Uploading profile image...');
           final url = await UserService.uploadFile((_profileImageFileOrBytes as File).path);
-          print('Image upload result: ' + url.toString());
           imageUrl = url;
         }
-        print('Saving user profile to backend...');
         await UserService.saveUserProfile(
           _nameController.text.trim(),
           _emailController.text.trim(),
@@ -91,21 +357,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _selectedCategories,
           _usernameController.text.trim(),
           null,
+          phone: _phoneController.text.trim(),
         );
-        print('Registration successful!');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Registration successful! Please login.')),
         );
         Navigator.pushReplacementNamed(context, '/login');
       } else {
-        print('Registration failed: user is null');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Registration failed.')),
         );
       }
     } catch (e, st) {
-      print('Registration error: ' + e.toString());
-      print(st);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ' + e.toString())),
       );
@@ -262,9 +525,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         label: 'Email',
                         icon: Icons.email,
                         keyboardType: TextInputType.emailAddress,
-                        validator: (value) => value!.contains('@') ? null : 'Enter a valid email',
+                        validator: (value) => _emailErrorText ?? (value!.contains('@') ? null : 'Enter a valid email'),
                         fillColor: Colors.white,
                         borderColor: inputBorderColor,
+                        focusNode: _emailFocusNode,
                       ).animate().fadeIn(duration: 400.ms, delay: 500.ms),
                       const SizedBox(height: 14),
                       // Password
@@ -277,6 +541,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         fillColor: Colors.white,
                         borderColor: inputBorderColor,
                       ).animate().fadeIn(duration: 400.ms, delay: 550.ms),
+                      const SizedBox(height: 14),
+                      CustomTextField(
+                        controller: _phoneController,
+                        label: 'Phone Number',
+                        icon: Icons.phone,
+                        keyboardType: TextInputType.phone,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your phone number';
+                          }
+                          // Basic phone validation
+                          if (!RegExp(r'^\+?[0-9]{7,15}').hasMatch(value)) {
+                            return 'Enter a valid phone number';
+                          }
+                          return null;
+                        },
+                      ).animate().fadeIn(duration: 400.ms, delay: 600.ms),
                       const SizedBox(height: 18),
                       Align(
                         alignment: Alignment.centerLeft,
@@ -331,7 +612,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           }
                           return null;
                         },
-                      ).animate().fadeIn(duration: 400.ms, delay: 600.ms),
+                      ).animate().fadeIn(duration: 400.ms, delay: 650.ms),
                       const SizedBox(height: 24),
                       // Register Button
                       CustomButton(

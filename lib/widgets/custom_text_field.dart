@@ -12,6 +12,7 @@ class CustomTextField extends StatefulWidget {
   final bool? filled;
   final Color? fillColor;
   final Color? borderColor;
+  final FocusNode? focusNode;
 
   const CustomTextField({
     super.key,
@@ -24,6 +25,7 @@ class CustomTextField extends StatefulWidget {
     this.filled,
     this.fillColor,
     this.borderColor,
+    this.focusNode,
   });
 
   @override
@@ -33,22 +35,33 @@ class CustomTextField extends StatefulWidget {
 class _CustomTextFieldState extends State<CustomTextField> {
   bool _obscure = true;
   bool _isFocused = false;
-  late FocusNode _focusNode;
+  FocusNode? _internalFocusNode;
+  FocusNode get _focusNode => widget.focusNode ?? _internalFocusNode!;
 
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode();
-    _focusNode.addListener(() {
-      setState(() {
-        _isFocused = _focusNode.hasFocus;
-      });
+    if (widget.focusNode == null) {
+      _internalFocusNode = FocusNode();
+      _internalFocusNode!.addListener(_handleFocusChange);
+    } else {
+      widget.focusNode!.addListener(_handleFocusChange);
+    }
+  }
+
+  void _handleFocusChange() {
+    setState(() {
+      _isFocused = _focusNode.hasFocus;
     });
   }
 
   @override
   void dispose() {
-    _focusNode.dispose();
+    if (_internalFocusNode != null) {
+      _internalFocusNode!.dispose();
+    } else if (widget.focusNode != null) {
+      widget.focusNode!.removeListener(_handleFocusChange);
+    }
     super.dispose();
   }
 

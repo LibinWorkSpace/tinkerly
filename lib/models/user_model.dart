@@ -8,6 +8,7 @@ class AppUser {
   final String? profileImageUrl;
   final DateTime? createdAt;
   final DateTime? lastActive;
+  final String? phone;
 
   AppUser({
     required this.uid,
@@ -19,6 +20,7 @@ class AppUser {
     this.profileImageUrl,
     this.createdAt,
     this.lastActive,
+    this.phone,
   });
 
   Map<String, dynamic> toMap() {
@@ -32,6 +34,7 @@ class AppUser {
       'profileImageUrl': profileImageUrl,
       'createdAt': createdAt?.toIso8601String(),
       'lastActive': lastActive?.toIso8601String(),
+      'phone': phone,
     };
   }
 
@@ -46,6 +49,7 @@ class AppUser {
       profileImageUrl: map['profileImageUrl'],
       createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,
       lastActive: map['lastActive'] != null ? DateTime.parse(map['lastActive']) : null,
+      phone: map['phone'],
     );
   }
 
@@ -59,6 +63,7 @@ class AppUser {
     String? profileImageUrl,
     DateTime? createdAt,
     DateTime? lastActive,
+    String? phone,
   }) {
     return AppUser(
       uid: uid ?? this.uid,
@@ -70,6 +75,7 @@ class AppUser {
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
       createdAt: createdAt ?? this.createdAt,
       lastActive: lastActive ?? this.lastActive,
+      phone: phone ?? this.phone,
     );
   }
 }

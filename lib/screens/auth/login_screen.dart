@@ -55,6 +55,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   void _loginUser() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
     });
@@ -104,6 +105,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     } catch (e) {
       Fluttertoast.showToast(msg: "Login failed: "+e.toString());
     } finally {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
@@ -111,6 +113,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   void _handleGoogleSignIn() async {
+    if (!mounted) return;
     setState(() => _isGoogleLoading = true);
     try {
       final user = await _authService.signInWithGoogle();
@@ -153,6 +156,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     } catch (e) {
       Fluttertoast.showToast(msg: "Error: "+e.toString());
     } finally {
+      if (!mounted) return;
       setState(() => _isGoogleLoading = false);
     }
   }
@@ -343,6 +347,101 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         ),
                       ),
                     ).animate().fadeIn(duration: 400.ms, delay: 800.ms),
+                    const SizedBox(height: 18),
+                    TextButton(
+                      onPressed: () async {
+                        final email = _emailController.text.trim();
+                        if (email.isEmpty || !email.contains('@')) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please enter a valid email to reset password.')),
+                          );
+                          return;
+                        }
+                        // Ask user for OTP delivery method
+                        String? method = await showDialog<String>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Send OTP'),
+                            content: const Text('How would you like to receive the OTP?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, 'email'),
+                                child: const Text('Email'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, 'phone'),
+                                child: const Text('Phone Number'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (method == null) return;
+                        // Send OTP
+                        final sent = await UserService.sendPasswordResetOtp(email, method: method);
+                        if (!sent) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed to send OTP via $method. Please check your email/phone.')),
+                          );
+                          return;
+                        }
+                        TextEditingController otpController = TextEditingController();
+                        TextEditingController newPasswordController = TextEditingController();
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Reset Password'),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('An OTP has been sent to your $method.'),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: otpController,
+                                  decoration: const InputDecoration(labelText: 'Enter OTP'),
+                                ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: newPasswordController,
+                                  decoration: const InputDecoration(labelText: 'New Password'),
+                                  obscureText: true,
+                                ),
+                              ],
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () async {
+                                  final otp = otpController.text.trim();
+                                  final newPassword = newPasswordController.text.trim();
+                                  if (otp.isEmpty || newPassword.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Please enter OTP and new password.')),
+                                    );
+                                    return;
+                                  }
+                                  final reset = await UserService.resetPasswordWithOtp(method == 'phone' ? email : email, otp, newPassword);
+                                  if (reset) {
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Password reset successful! Please login.')),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Invalid OTP or error. Please try again.')),
+                                    );
+                                  }
+                                },
+                                child: const Text('Submit'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      child: const Text('Forgot Password?'),
+                    ).animate().fadeIn(duration: 400.ms, delay: 850.ms),
                   ],
                 ),
               ),

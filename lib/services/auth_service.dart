@@ -81,4 +81,37 @@ class AuthService {
   }
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  // Phone Auth: Send OTP
+  Future<void> verifyPhoneNumber({
+    required String phoneNumber,
+    required Function(String verificationId, int? resendToken) codeSent,
+    required Function(FirebaseAuthException error) verificationFailed,
+    required void Function(String verificationId) codeAutoRetrievalTimeout,
+    required Function(PhoneAuthCredential credential) verificationCompleted,
+  }) async {
+    await _auth.verifyPhoneNumber(
+      phoneNumber: phoneNumber,
+      timeout: const Duration(seconds: 60),
+      verificationCompleted: verificationCompleted,
+      verificationFailed: verificationFailed,
+      codeSent: codeSent,
+      codeAutoRetrievalTimeout: codeAutoRetrievalTimeout,
+    );
+  }
+
+  // Phone Auth: Sign in with OTP
+  Future<User?> signInWithPhoneOtp(String verificationId, String smsCode) async {
+    try {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      );
+      final userCredential = await _auth.signInWithCredential(credential);
+      return userCredential.user;
+    } catch (e) {
+      print('❌ Phone OTP Sign-In Error: $e');
+      return null;
+    }
+  }
 }
