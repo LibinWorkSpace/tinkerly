@@ -5,6 +5,7 @@ const cors = require('cors');
 const admin = require('./firebase');
 const { parser, cloudinary } = require('./cloudinary');
 const Post = require('./models/Post'); // Add this after other model imports
+const User = require('./models/user.model'); // Add User model
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 
@@ -28,6 +29,9 @@ app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
+// Import OTP routes
+const otpRoutes = require('./routes/otp.routes');
+
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('MongoDB connected'))
   .catch(err => console.error(err));
@@ -42,20 +46,7 @@ const mediaSchema = new mongoose.Schema({
 });
 const Media = mongoose.model('Media', mediaSchema);
 
-// User schema
-const userSchema = new mongoose.Schema({
-  uid: { type: String, unique: true },
-  name: String,
-  email: String,
-  phone: String, // <-- Add phone field
-  profileImageUrl: String,
-  categories: [String],
-  username: String,
-  bio: String,
-  followers: { type: [String], default: [] }, // Array of UIDs
-  following: { type: [String], default: [] }, // Array of UIDs
-});
-const User = mongoose.model('User', userSchema);
+// User schema is now imported from models/user.model.js
 
 // Helper function to send SMS (placeholder, replace with real SMS API like Twilio)
 async function sendSms(phone, message) {
@@ -163,6 +154,9 @@ app.get('/user/exists', async (req, res) => {
   res.json({ exists: !!user });
 });
 
+// OTP routes
+app.use('/otp', otpRoutes);
+
 // Firebase Auth middleware (keep this after the public routes)
 app.use(async (req, res, next) => {
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
@@ -216,14 +210,54 @@ app.delete('/media/:id', async (req, res) => {
 
 // Create or update user profile
 app.post('/user', async (req, res) => {
-  const { name, email, phone, profileImageUrl, categories, username, bio } = req.body;
-  const uid = req.user.uid;
-  const user = await User.findOneAndUpdate(
-    { uid },
-    { name, email, phone, profileImageUrl, categories, username, bio },
-    { upsert: true, new: true }
-  );
-  res.json(user);
+  try {
+    // Log incoming request for debugging
+    console.log('POST /user body:', req.body);
+    console.log('POST /user req.user:', req.user);
+    const { name, email, phone, profileImageUrl, categories, username, bio } = req.body;
+    const uid = req.user && req.user.uid;
+    if (!uid) {
+      console.error('POST /user error: Missing uid in req.user');
+      return res.status(400).json({ error: 'Missing uid in token' });
+    }
+
+    // Build updateFields object only with defined values
+    const updateFields = {};
+    if (name !== undefined) updateFields.name = name;
+    if (email !== undefined) updateFields.email = email;
+    if (phone !== undefined && phone !== null) updateFields.phone = phone;
+    if (profileImageUrl !== undefined) updateFields.profileImageUrl = profileImageUrl;
+    if (categories !== undefined) updateFields.categories = categories;
+    if (username !== undefined) updateFields.username = username;
+    if (bio !== undefined) updateFields.bio = bio;
+
+    // Check if phone is already used by another user
+    if (updateFields.phone) {
+      const existingUserWithPhone = await User.findOne({ phone: updateFields.phone, uid: { $ne: uid } });
+      if (existingUserWithPhone) {
+        return res.status(409).json({ error: 'Phone number already in use by another user.' });
+      }
+    }
+
+    let user;
+    try {
+      user = await User.findOneAndUpdate(
+        { uid },
+        updateFields,
+        { upsert: true, new: true }
+      );
+    } catch (err) {
+      // Handle duplicate key error (race condition)
+      if (err.code === 11000 && err.keyPattern && err.keyPattern.phone) {
+        return res.status(409).json({ error: 'Phone number already in use.' });
+      }
+      throw err;
+    }
+    res.json(user);
+  } catch (err) {
+    console.error('POST /user error:', err);
+    res.status(500).json({ error: 'Failed to save user profile', details: err.message });
+  }
 });
 
 // Get user profile
