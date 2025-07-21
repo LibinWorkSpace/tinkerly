@@ -202,7 +202,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white.withAlpha(25),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -226,7 +226,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
             title,
             style: TextStyle(
               fontSize: 12,
-              color: color.withOpacity(0.8),
+              color: color.withAlpha(204),
             ),
             textAlign: TextAlign.center,
           ),
@@ -243,7 +243,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withAlpha(5),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -272,7 +272,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(post.status).withOpacity(0.9),
+                    color: _getStatusColor(post.status).withAlpha(230),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -292,7 +292,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
+                    color: Colors.black.withAlpha(179),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -468,7 +468,7 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: const Color(0xFF6C63FF).withOpacity(0.1),
+              color: const Color(0xFF6C63FF).withAlpha(25),
               shape: BoxShape.circle,
             ),
             child: const Icon(

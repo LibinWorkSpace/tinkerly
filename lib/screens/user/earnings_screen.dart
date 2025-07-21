@@ -118,7 +118,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF6C63FF).withOpacity(0.3),
+                    color: const Color(0xFF6C63FF).withAlpha(77),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -175,7 +175,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withAlpha(5),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -237,7 +237,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withAlpha(5),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -291,7 +291,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withAlpha(5),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -383,7 +383,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _getTransactionColor(transaction.type).withOpacity(0.1),
+              color: _getTransactionColor(transaction.type).withAlpha(25),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -414,7 +414,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF6C63FF).withOpacity(0.1),
+                        color: const Color(0xFF6C63FF).withAlpha(25),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
@@ -460,7 +460,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(transaction.status).withOpacity(0.1),
+                  color: _getStatusColor(transaction.status).withAlpha(25),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(

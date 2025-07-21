@@ -5,6 +5,8 @@ import 'package:tinkerly/services/user_service.dart';
 import 'package:video_player/video_player.dart';
 import '../../widgets/main_bottom_nav_bar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 class HomeScreen extends StatefulWidget {
   static final GlobalKey<_HomeScreenState> homeScreenKey = GlobalKey<_HomeScreenState>();
@@ -53,7 +55,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_selectedIndex],
+      backgroundColor: Color(0xFFFAFAFA), // Light gray-white background
+      body: Container(
+        color: Color(0xFFFAFAFA),
+        child: _pages[_selectedIndex],
+      ),
       bottomNavigationBar: MainBottomNavBar(
         currentIndex: _selectedIndex,
         onTap: (index) {
@@ -89,27 +95,189 @@ class _HomeFeedState extends State<HomeFeed> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<dynamic>>(
-      future: _postsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final posts = snapshot.data ?? [];
-        if (posts.isEmpty) {
-          return const Center(child: Text('No posts yet'));
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          itemCount: posts.length,
-          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-          cacheExtent: 2000,
-          itemBuilder: (context, index) {
-            final post = posts[index];
-            return _InstagramPostCard(post: post);
-          },
-        );
-      },
+    return Scaffold(
+      backgroundColor: Color(0xFFFAFAFA),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        shadowColor: Colors.black.withAlpha(25),
+        automaticallyImplyLeading: false,
+        title: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF6C63FF), Color(0xFFFF6B9D)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0xFF6C63FF).withAlpha(76),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Text(
+                "⚡",
+                style: TextStyle(fontSize: 20, color: Colors.white),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              "Tinkerly",
+              style: GoogleFonts.poppins(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2D3748), // Dark text
+                letterSpacing: 1,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          Container(
+            margin: EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Color(0xFFF7FAFC), // Light background
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Color(0xFFE2E8F0),
+                width: 1,
+              ),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.notifications_outlined, color: Color(0xFF6C63FF)),
+              onPressed: () {
+                // TODO: Implement notifications
+              },
+            ),
+          ),
+        ],
+      ),
+      body: FutureBuilder<List<dynamic>>(
+        future: _postsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(
+              child: Container(
+                padding: EdgeInsets.all(24),
+                margin: EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(5),
+                      blurRadius: 10,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Loading amazing posts...',
+                      style: GoogleFonts.poppins(
+                        color: Color(0xFF2D3748),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          final posts = snapshot.data ?? [];
+          if (posts.isEmpty) {
+            return Center(
+              child: Container(
+                padding: EdgeInsets.all(32),
+                margin: EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(5),
+                      blurRadius: 15,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF6C63FF), Color(0xFFFF6B9D)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Color(0xFF6C63FF).withAlpha(76),
+                            blurRadius: 10,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.photo_library_outlined,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'No Posts Yet',
+                      style: GoogleFonts.poppins(
+                        color: Color(0xFF2D3748),
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Be the first to share something amazing!',
+                      style: GoogleFonts.poppins(
+                        color: Color(0xFF718096),
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+            itemCount: posts.length,
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            cacheExtent: 2000,
+            itemBuilder: (context, index) {
+              final post = posts[index];
+              return _InstagramPostCard(post: post).animate().fadeIn(
+                duration: 400.ms,
+                delay: (index * 100).ms,
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
@@ -165,95 +333,240 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
     final mediaType = (post['mediaType'] ?? '').toString().toLowerCase();
     final isImage = mediaType == 'image';
     final isVideo = mediaType == 'video';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: Colors.grey[200],
-                backgroundImage: post['profileImageUrl'] != null && post['profileImageUrl'].isNotEmpty
-                    ? NetworkImage(post['profileImageUrl'])
-                    : null,
-                child: (post['profileImageUrl'] == null || post['profileImageUrl'].isEmpty)
-                    ? Icon(Icons.person, color: Colors.grey[600])
-                    : null,
-                radius: 22,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                post['name'] ?? post['username'] ?? 'User',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            ],
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(5),
+            blurRadius: 10,
+            spreadRadius: 0,
+            offset: Offset(0, 2),
           ),
-        ),
-        // Media
-        isImage
-            ? Image.network(
-                post['url'],
-                width: double.infinity,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, progress) => progress == null
-                    ? child
-                    : Container(
-                        width: double.infinity,
-                        height: 320,
-                        color: Colors.grey[200],
-                        child: const Center(child: CircularProgressIndicator()),
-                      ),
-                errorBuilder: (context, error, stackTrace) => Container(
-                  width: double.infinity,
-                  height: 320,
-                  color: Colors.grey[200],
-                  child: const Icon(Icons.broken_image, size: 60, color: Colors.grey),
-                ),
-              )
-            : isVideo
-                ? _FeedVideoPlayerWithFallback(url: post['url'])
-                : Container(height: 320, width: double.infinity, color: Colors.grey[200]),
-        // Like/Comment/Time Row
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: _toggleLike,
-                child: Row(
-                  children: [
-                    Icon(
-                      isLiked ? Icons.favorite : Icons.favorite_border,
-                      size: 26,
-                      color: isLiked ? Colors.pinkAccent : Colors.grey[700],
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Color(0xFF6C63FF).withAlpha(76),
+                      width: 2,
                     ),
-                    const SizedBox(width: 4),
-                    Text('$likeCount'),
-                  ],
+                  ),
+                  child: CircleAvatar(
+                    backgroundColor: Color(0xFFF7FAFC),
+                    backgroundImage: post['profileImageUrl'] != null && post['profileImageUrl'].isNotEmpty
+                        ? NetworkImage(post['profileImageUrl'])
+                        : null,
+                    child: (post['profileImageUrl'] == null || post['profileImageUrl'].isEmpty)
+                        ? Icon(Icons.person, color: Color(0xFF6C63FF), size: 20)
+                        : null,
+                    radius: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        post['name'] ?? post['username'] ?? 'User',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Color(0xFF2D3748),
+                        ),
+                      ),
+                      Text(
+                        _formatPostTime(post['createdAt']),
+                        style: GoogleFonts.poppins(
+                          color: Color(0xFF718096),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF6C63FF), Color(0xFFFF6B9D)],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    post['category'] ?? 'General',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Media
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(50),
+                  blurRadius: 15,
+                  spreadRadius: 0,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: isImage
+                  ? Image.network(
+                      post['url'],
+                      width: double.infinity,
+                      height: 300,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, progress) => progress == null
+                          ? child
+                          : Container(
+                              width: double.infinity,
+                              height: 300,
+                              decoration: BoxDecoration(
+                                color: Color(0xFFF7FAFC),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
+                                ),
+                              ),
+                            ),
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        width: double.infinity,
+                        height: 300,
+                        decoration: BoxDecoration(
+                          color: Color(0xFFF7FAFC),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(Icons.broken_image, size: 60, color: Color(0xFF718096)),
+                      ),
+                    )
+                  : isVideo
+                      ? _FeedVideoPlayerWithFallback(url: post['url'])
+                      : Container(
+                          height: 300,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Color(0xFFF7FAFC),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(Icons.image, size: 60, color: Color(0xFF718096)),
+                        ),
+            ),
+          ),
+          // Like/Comment Row
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: _toggleLike,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isLiked 
+                          ? Color(0xFFFF6B9D).withAlpha(25)
+                          : Color(0xFFF7FAFC),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isLiked 
+                            ? Color(0xFFFF6B9D)
+                            : Color(0xFFE2E8F0),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isLiked ? Icons.favorite : Icons.favorite_border,
+                          size: 20,
+                          color: isLiked ? Color(0xFFFF6B9D) : Color(0xFF718096),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '$likeCount',
+                          style: GoogleFonts.poppins(
+                            color: isLiked ? Color(0xFFFF6B9D) : Color(0xFF2D3748),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Color(0xFFF7FAFC),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Color(0xFFE2E8F0),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.mode_comment_outlined, size: 20, color: Color(0xFF718096)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Comment',
+                        style: GoogleFonts.poppins(
+                          color: Color(0xFF2D3748),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Description
+          if (post['description'] != null && post['description'].toString().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Text(
+                post['description'] ?? '',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Color(0xFF2D3748),
+                  height: 1.4,
                 ),
               ),
-              const SizedBox(width: 18),
-              Icon(Icons.mode_comment_outlined, size: 26, color: Colors.grey[700]),
-              const Spacer(),
-              Text(
-                _formatPostTime(post['createdAt']),
-                style: TextStyle(color: Colors.grey[600], fontSize: 13),
-              ),
-            ],
-          ),
-        ),
-        // Description
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Text(
-            post['description'] ?? '',
-            style: const TextStyle(fontSize: 15),
-          ),
-        ),
-        const SizedBox(height: 8),
-      ],
+            ),
+        ],
+      ),
     );
   }
 }
@@ -361,102 +674,336 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final brandColor = Color(0xFF4267B2);
+    final primaryColor = Color(0xFF6C63FF);
+    final secondaryColor = Color(0xFFFF6B9D);
+    
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: Text('Search Users', style: TextStyle(color: Colors.black)),
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.black),
+        automaticallyImplyLeading: false,
+        title: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.search, color: Colors.black, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Discover People',
+              style: GoogleFonts.poppins(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+          ],
+        ),
       ),
-      backgroundColor: Colors.white,
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
+          // Search Bar
+          Container(
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.black.withAlpha(76),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(25),
+                  blurRadius: 15,
+                  spreadRadius: 0,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
             child: TextField(
               controller: _controller,
               onChanged: _search,
+              style: GoogleFonts.poppins(color: Colors.black),
               decoration: InputDecoration(
-                hintText: 'Search by name or username',
-                prefixIcon: Icon(Icons.search, color: brandColor),
-                filled: true,
-                fillColor: Colors.grey[100],
-                contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 20),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide.none,
+                hintText: 'Search by name or username...',
+                hintStyle: GoogleFonts.poppins(
+                  color: Colors.black.withAlpha(178),
                 ),
+                prefixIcon: Icon(Icons.search, color: Colors.black.withAlpha(204)),
+                filled: false,
+                contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                border: InputBorder.none,
               ),
             ),
-          ),
-          if (_isLoading)
-            Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          if (_error.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Text(_error, style: TextStyle(color: Colors.red)),
-            ),
-          if (!_isLoading && _results.isEmpty && _controller.text.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Text('No users found.', style: TextStyle(color: Colors.grey)),
-            ),
-          if (_results.isNotEmpty)
-            Expanded(
-              child: ListView.separated(
-                itemCount: _results.length,
-                separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey[200]),
-                itemBuilder: (context, index) {
-                  final user = _results[index];
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: brandColor.withOpacity(0.1),
-                      backgroundImage: user['profileImageUrl'] != null && user['profileImageUrl'].isNotEmpty
-                          ? NetworkImage(user['profileImageUrl'])
-                          : null,
-                      child: (user['profileImageUrl'] == null || user['profileImageUrl'].isEmpty)
-                          ? Text(
-                              user['name'] != null && user['name'].isNotEmpty
-                                  ? user['name'][0].toUpperCase()
-                                  : 'N',
-                              style: TextStyle(fontWeight: FontWeight.bold, color: brandColor),
-                            )
-                          : null,
-                    ),
-                    title: Text(user['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text('@${user['username'] ?? ''}', style: TextStyle(color: Colors.black54)),
-                    trailing: ElevatedButton(
-                      onPressed: () async {
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PublicProfileScreen(uid: user['uid']),
-                          ),
-                        );
-                        // Refresh the logged-in user's profile if follow/unfollow happened
-                        if (result == true) {
-                          if (profileScreenKey.currentState != null) {
-                            await profileScreenKey.currentState!.loadProfileAndPosts();
-                          }
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: brandColor,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        padding: EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                        elevation: 0,
+          ).animate().fadeIn(duration: 400.ms),
+          
+          // Content
+          Expanded(
+            child: _isLoading
+                ? Center(
+                    child: Container(
+                      padding: EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withAlpha(25),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Text('View', style: TextStyle(fontSize: 14)),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Searching users...',
+                            style: GoogleFonts.poppins(
+                              color: Colors.black,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  );
-                },
-              ),
-            ),
+                  )
+                : _error.isNotEmpty
+                    ? Center(
+                        child: Container(
+                          padding: EdgeInsets.all(24),
+                          margin: EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withAlpha(25),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.red.withAlpha(76),
+                              width: 1,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.error_outline, color: Colors.red, size: 32),
+                              const SizedBox(height: 12),
+                              Text(
+                                _error,
+                                style: GoogleFonts.poppins(
+                                  color: Colors.red,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : !_isLoading && _results.isEmpty && _controller.text.isNotEmpty
+                        ? Center(
+                            child: Container(
+                              padding: EdgeInsets.all(32),
+                              margin: EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withAlpha(25),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white.withAlpha(51),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.search_off, color: Colors.black.withAlpha(178), size: 48),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No users found',
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.black,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Try searching with different keywords',
+                                    style: GoogleFonts.poppins(
+                                      color: Colors.black.withAlpha(178),
+                                      fontSize: 14,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : _results.isNotEmpty
+                            ? ListView.builder(
+                                padding: EdgeInsets.symmetric(horizontal: 16),
+                                itemCount: _results.length,
+                                itemBuilder: (context, index) {
+                                  final user = _results[index];
+                                  return Container(
+                                    margin: EdgeInsets.only(bottom: 12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: Colors.black.withAlpha(51),
+                                        width: 1,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withAlpha(25),
+                                          blurRadius: 10,
+                                          spreadRadius: 0,
+                                          offset: Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ListTile(
+                                      contentPadding: EdgeInsets.all(16),
+                                      leading: Container(
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: Colors.black.withAlpha(76),
+                                            width: 2,
+                                          ),
+                                        ),
+                                        child: CircleAvatar(
+                                          backgroundColor: primaryColor.withAlpha(51),
+                                          backgroundImage: user['profileImageUrl'] != null && user['profileImageUrl'].isNotEmpty
+                                              ? NetworkImage(user['profileImageUrl'])
+                                              : null,
+                                          child: (user['profileImageUrl'] == null || user['profileImageUrl'].isEmpty)
+                                              ? Text(
+                                                  user['name'] != null && user['name'].isNotEmpty
+                                                      ? user['name'][0].toUpperCase()
+                                                      : 'N',
+                                                  style: GoogleFonts.poppins(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.black,
+                                                  ),
+                                                )
+                                              : null,
+                                          radius: 24,
+                                        ),
+                                      ),
+                                      title: Text(
+                                        user['name'] ?? '',
+                                        style: GoogleFonts.poppins(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      subtitle: Text(
+                                        '@${user['username'] ?? ''}',
+                                        style: GoogleFonts.poppins(
+                                          color: Colors.black.withAlpha(178),
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      trailing: Container(
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [primaryColor, secondaryColor],
+                                            begin: Alignment.centerLeft,
+                                            end: Alignment.centerRight,
+                                          ),
+                                          borderRadius: BorderRadius.circular(12),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: primaryColor.withAlpha(76),
+                                              blurRadius: 8,
+                                              spreadRadius: 0,
+                                              offset: Offset(0, 4),
+                                            ),
+                                          ],
+                                        ),
+                                        child: ElevatedButton(
+                                          onPressed: () async {
+                                            final result = await Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => PublicProfileScreen(uid: user['uid']),
+                                              ),
+                                            );
+                                            // Refresh the logged-in user's profile if follow/unfollow happened
+                                            if (result == true) {
+                                              if (profileScreenKey.currentState != null) {
+                                                await profileScreenKey.currentState!.loadProfileAndPosts();
+                                              }
+                                            }
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.transparent,
+                                            foregroundColor: Colors.white,
+                                            elevation: 0,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                          ),
+                                          child: Text(
+                                            'View',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ).animate().fadeIn(
+                                    duration: 400.ms,
+                                    delay: (index * 100).ms,
+                                  );
+                                },
+                              )
+                            : Center(
+                                child: Container(
+                                  padding: EdgeInsets.all(32),
+                                  margin: EdgeInsets.all(24),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withAlpha(25),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: Colors.white.withAlpha(51),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.people_outline, color: Colors.black.withAlpha(178), size: 48),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'Discover Amazing People',
+                                        style: GoogleFonts.poppins(
+                                          color: Colors.black,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Search for users by name or username to connect with them',
+                                        style: GoogleFonts.poppins(
+                                          color: Colors.black.withAlpha(178),
+                                          fontSize: 14,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+          ),
         ],
       ),
     );

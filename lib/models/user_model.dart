@@ -9,6 +9,7 @@ class AppUser {
   final DateTime? createdAt;
   final DateTime? lastActive;
   final String? phone;
+  final bool? isPhoneVerified;
 
   AppUser({
     required this.uid,
@@ -21,6 +22,7 @@ class AppUser {
     this.createdAt,
     this.lastActive,
     this.phone,
+    this.isPhoneVerified,
   });
 
   Map<String, dynamic> toMap() {
@@ -35,6 +37,7 @@ class AppUser {
       'createdAt': createdAt?.toIso8601String(),
       'lastActive': lastActive?.toIso8601String(),
       'phone': phone,
+      'isPhoneVerified': isPhoneVerified,
     };
   }
 
@@ -50,6 +53,7 @@ class AppUser {
       createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,
       lastActive: map['lastActive'] != null ? DateTime.parse(map['lastActive']) : null,
       phone: map['phone'],
+      isPhoneVerified: map['isPhoneVerified'],
     );
   }
 
@@ -64,6 +68,7 @@ class AppUser {
     DateTime? createdAt,
     DateTime? lastActive,
     String? phone,
+    bool? isPhoneVerified,
   }) {
     return AppUser(
       uid: uid ?? this.uid,
@@ -76,6 +81,7 @@ class AppUser {
       createdAt: createdAt ?? this.createdAt,
       lastActive: lastActive ?? this.lastActive,
       phone: phone ?? this.phone,
+      isPhoneVerified: isPhoneVerified ?? this.isPhoneVerified,
     );
   }
 }

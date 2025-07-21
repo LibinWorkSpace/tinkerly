@@ -338,7 +338,7 @@ class _PortfolioScreenState extends State<PortfolioScreen>
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: const Color(0xFF6C63FF).withOpacity(0.1),
+              color: const Color(0xFF6C63FF).withAlpha(25),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -481,7 +481,7 @@ class _PortfolioScreenState extends State<PortfolioScreen>
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF6C63FF).withOpacity(0.1),
+                              color: const Color(0xFF6C63FF).withAlpha(25),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(

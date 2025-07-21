@@ -8,24 +8,26 @@ import '../constants/api_constants.dart';
 
 class UserService {
   // Save or update user profile
-  static Future<void> saveUserProfile(String name, String email, String? profileImageUrl, List<String> categories, String username, String? bio, {String? phone}) async {
+  static Future<void> saveUserProfile(String name, String email, String? profileImageUrl, List<String> categories, String username, String? bio, {String? phone, bool? isPhoneVerified}) async {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
+    final body = {
+      'name': name,
+      'email': email,
+      'phone': phone,
+      'profileImageUrl': profileImageUrl,
+      'categories': categories,
+      'username': username,
+      'bio': bio,
+      if (isPhoneVerified != null) 'isPhoneVerified': isPhoneVerified,
+    };
     final response = await http.post(
       Uri.parse('${ApiConstants.baseUrl}/user'),
       headers: {
         'Authorization': 'Bearer $idToken',
         'Content-Type': 'application/json',
       },
-      body: jsonEncode({
-        'name': name,
-        'email': email,
-        'phone': phone,
-        'profileImageUrl': profileImageUrl,
-        'categories': categories,
-        'username': username,
-        'bio': bio,
-      }),
+      body: jsonEncode(body),
     );
     if (response.statusCode != 200) {
       throw Exception('Failed to save user profile');
@@ -334,5 +336,87 @@ class UserService {
       body: jsonEncode({'email': email, 'otp': otp}),
     );
     return response.statusCode == 200;
+  }
+
+  static Future<bool> sendSmsOtp(String phone, {bool requireAuth = true}) async {
+    String? idToken;
+    if (requireAuth) {
+      final user = FirebaseAuth.instance.currentUser;
+      idToken = await user?.getIdToken();
+    }
+    final headers = {
+      'Content-Type': 'application/json',
+      if (requireAuth && idToken != null) 'Authorization': 'Bearer $idToken',
+    };
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}/otp/send-otp'),
+      headers: headers,
+      body: jsonEncode({'phone': phone}),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['result'] == true;
+    }
+    return false;
+  }
+
+  static Future<bool> verifySmsOtp(String phone, String code, {bool requireAuth = true}) async {
+    String? idToken;
+    if (requireAuth) {
+      final user = FirebaseAuth.instance.currentUser;
+      idToken = await user?.getIdToken();
+    }
+    final headers = {
+      'Content-Type': 'application/json',
+      if (requireAuth && idToken != null) 'Authorization': 'Bearer $idToken',
+    };
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}/otp/verify-otp'),
+      headers: headers,
+      body: jsonEncode({'phone': phone, 'code': code}),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['result'] == true;
+    }
+    return false;
+  }
+
+  // Authenticated phone verification for profile
+  static Future<bool> verifySmsOtpAuth(String phone, String code) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final idToken = await user?.getIdToken();
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}/otp/verify-otp-auth'),
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'phone': phone, 'code': code}),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['result'] == true;
+    }
+    return false;
+  }
+
+  // Authenticated phone number change
+  static Future<bool> changePhone(String phone, String code) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final idToken = await user?.getIdToken();
+    final response = await http.post(
+      Uri.parse('${ApiConstants.baseUrl}/otp/change-phone'),
+      headers: {
+        'Authorization': 'Bearer $idToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'phone': phone, 'code': code}),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['result'] == true;
+    }
+    return false;
   }
 }

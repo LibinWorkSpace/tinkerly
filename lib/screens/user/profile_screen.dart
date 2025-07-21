@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/user_service.dart';
 import '../../services/auth_service.dart';
 import '../auth/login_screen.dart';
+import '../auth/phone_verification_screen.dart';
 import 'edit_profile_screen.dart';
 import '../../models/user_model.dart';
 import 'portfolio_screen.dart'; // Added import for PortfolioScreen
@@ -11,6 +12,11 @@ import 'user_posts_feed_screen.dart';
 import '../../widgets/main_bottom_nav_bar.dart';
 import 'home_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../auth/set_password_screen.dart'; // Added import for SetPasswordScreen
+import '../auth/phone_verification_screen.dart'; // Ensure import for phone verification
+import '../auth/phone_status_screen.dart'; // Added import for PhoneStatusScreen
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 final GlobalKey<_ProfileScreenState> profileScreenKey = GlobalKey<_ProfileScreenState>();
 
@@ -98,173 +104,604 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     }
   }
 
+  void _verifyPhone() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PhoneVerificationScreen(),
+      ),
+    );
+    if (result == true) {
+      await loadProfileAndPosts();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Center(child: CircularProgressIndicator());
+      return Scaffold(
+        backgroundColor: Color(0xFFFAFAFA),
+        body: Center(
+          child: Container(
+            padding: EdgeInsets.all(24),
+            margin: EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha((0.05 * 255).toInt()),
+                  blurRadius: 10,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Loading your profile...',
+                  style: GoogleFonts.poppins(
+                    color: Color(0xFF2D3748),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
     if (_hasError) {
-      return Center(child: Text('Failed to load profile. Please try again.'));
+      return Scaffold(
+        backgroundColor: Color(0xFFFAFAFA),
+        body: Center(
+          child: Container(
+            padding: EdgeInsets.all(24),
+            margin: EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha((0.05 * 255).toInt()),
+                  blurRadius: 10,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.error_outline, color: Colors.red, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  'Failed to load profile',
+                  style: GoogleFonts.poppins(
+                    color: Colors.red,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Please try again',
+                  style: GoogleFonts.poppins(
+                    color: Colors.red.withAlpha((0.8 * 255).toInt()),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
     if (userProfile == null || _tabController == null) {
-      return Center(child: Text('No profile data.'));
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color(0xFF667EEA),
+                Color(0xFF764BA2),
+                Color(0xFFF093FB),
+                Color(0xFFF5576C),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              stops: [0.0, 0.3, 0.7, 1.0],
+            ),
+          ),
+          child: Center(
+            child: Container(
+              padding: EdgeInsets.all(24),
+              margin: EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha((0.1 * 255).toInt()),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withAlpha((0.2 * 255).toInt()),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.person_outline, color: Colors.white.withAlpha((0.7 * 255).toInt()), size: 48),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No profile data',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
     }
-    final brandColor = Color(0xFF4267B2); // Modern blue
+    
+    final primaryColor = Color(0xFF6C63FF);
+    final secondaryColor = Color(0xFFFF6B9D);
     // Debug print for profile image URL
     print('Profile image URL:  [32m${userProfile!["profileImageUrl"]} [0m');
     // Only show follower/following counts if this is the logged-in user's profile
     final isOwnProfile = true; // This screen is only for the logged-in user
+    final bool phoneNotVerified = userProfile!["isPhoneVerified"] != true;
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(56),
-        child: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0,
-          automaticallyImplyLeading: false,
-          actions: [
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.black),
-              onSelected: (value) {
-                if (value == 'logout') {
-                  _logout();
-                } else if (value == 'add_categories') {
-                  _showAddCategoriesDialog();
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'add_categories',
-                  child: Text('Add Categories'),
+      backgroundColor: Color(0xFFFAFAFA),
+      body: Container(
+        color: Color(0xFFFAFAFA),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Custom App Bar
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha((0.05 * 255).toInt()),
+                      blurRadius: 10,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
                 ),
-                const PopupMenuItem(
-                  value: 'logout',
-                  child: Text('Logout'),
-                ),
-              ],
-            ),
-          ],
-          bottom: PreferredSize(
-            preferredSize: Size.fromHeight(1),
-            child: Container(
-              color: Colors.grey.shade200,
-              height: 1,
-            ),
-          ),
-        ),
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            const SizedBox(height: 16),
-            Center(
-              child: CircleAvatar(
-                radius: 44,
-                backgroundColor: brandColor.withOpacity(0.1),
-                child: (userProfile!["profileImageUrl"] == null || userProfile!["profileImageUrl"].isEmpty)
-                    ? Text(
-                        userProfile!["name"] != null && userProfile!["name"].isNotEmpty
-                            ? userProfile!["name"][0].toUpperCase()
-                            : "N",
-                        style: TextStyle(fontSize: 40, color: brandColor, fontWeight: FontWeight.bold),
-                      )
-                    : ClipOval(
-                        child: Image.network(
-                          userProfile!["profileImageUrl"],
-                          width: 88,
-                          height: 88,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: 88,
-                              height: 88,
-                              color: brandColor.withOpacity(0.1),
-                              child: Icon(Icons.broken_image, color: brandColor, size: 40),
-                            );
-                          },
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [primaryColor, secondaryColor],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryColor.withAlpha((0.3 * 255).toInt()),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(Icons.person, color: Colors.white, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'My Profile',
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2D3748),
+                      ),
+                    ),
+                    Spacer(),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Color(0xFFF7FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Color(0xFFE2E8F0),
+                          width: 1,
                         ),
                       ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Center(
-              child: Text(
-                userProfile!["name"] ?? '',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.black),
-              ),
-            ),
-            Center(
-              child: Text(
-                "@${userProfile!["username"] ?? "username"}",
-                style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15, color: Colors.black54),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildStatColumn("Posts", allPosts.length.toString()),
-                if (isOwnProfile) ...[
-                  _verticalDivider(),
-                  _buildStatColumn("Followers", (userProfile!["followerCount"] ?? 0).toString()),
-                  _verticalDivider(),
-                  _buildStatColumn("Following", (userProfile!["followingCount"] ?? 0).toString()),
-                ],
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (userProfile!["bio"] != null && userProfile!["bio"].toString().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: Text(
-                  userProfile!["bio"],
-                  style: const TextStyle(fontSize: 15, color: Colors.black87),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _editProfile,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: brandColor,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
+                      child: PopupMenuButton<String>(
+                        icon: Stack(
+                          children: [
+                            Icon(Icons.more_vert, color: Color(0xFF6C63FF)),
+                            if (phoneNotVerified)
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        onSelected: (value) {
+                          if (value == 'logout') {
+                            _logout();
+                          } else if (value == 'add_categories') {
+                            _showAddCategoriesDialog();
+                          } else if (value == 'set_password') {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const SetPasswordScreen()),
+                            );
+                          } else if (value == 'verify_phone') {
+                            if (userProfile!["isPhoneVerified"] == true) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PhoneStatusScreen(
+                                    currentPhone: userProfile!["phone"],
+                                    isVerified: true,
+                                  ),
+                                ),
+                              ).then((changed) {
+                                if (changed == true) loadProfileAndPosts();
+                              });
+                            } else {
+                              _verifyPhone();
+                            }
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 'add_categories',
+                            child: Row(
+                              children: [
+                                Icon(Icons.category, color: primaryColor, size: 18),
+                                const SizedBox(width: 8),
+                                Text('Add Categories'),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'verify_phone',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  phoneNotVerified ? Icons.phone_disabled : Icons.verified,
+                                  color: phoneNotVerified ? Colors.red : Colors.green,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Text('Verify Phone'),
+                                if (phoneNotVerified) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'set_password',
+                            child: Row(
+                              children: [
+                                Icon(Icons.lock, color: primaryColor, size: 18),
+                                const SizedBox(width: 8),
+                                Text('Set Password'),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'logout',
+                            child: Row(
+                              children: [
+                                Icon(Icons.logout, color: Colors.red, size: 18),
+                                const SizedBox(width: 8),
+                                Text('Logout'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ],
+                ),
+              ).animate().fadeIn(duration: 400.ms),
+              
+              // Main Profile Content
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: BouncingScrollPhysics(),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 20),
+                      
+                      // Profile Header Card
+                      Container(
+                        margin: EdgeInsets.symmetric(horizontal: 16),
+                        padding: EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: Colors.white.withAlpha((0.2 * 255).toInt()),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withAlpha((0.1 * 255).toInt()),
+                              blurRadius: 20,
+                              spreadRadius: 0,
+                              offset: Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            // Profile Image
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white.withAlpha((0.3 * 255).toInt()),
+                                  width: 3,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: primaryColor.withAlpha((0.3 * 255).toInt()),
+                                    blurRadius: 20,
+                                    spreadRadius: 0,
+                                    offset: Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: CircleAvatar(
+                                radius: 50,
+                                backgroundColor: Colors.white.withAlpha((0.2 * 255).toInt()),
+                                child: (userProfile!["profileImageUrl"] == null || userProfile!["profileImageUrl"].isEmpty)
+                                    ? Text(
+                                        userProfile!["name"] != null && userProfile!["name"].isNotEmpty
+                                            ? userProfile!["name"][0].toUpperCase()
+                                            : "N",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 36,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      )
+                                    : ClipOval(
+                                        child: Image.network(
+                                          userProfile!["profileImageUrl"],
+                                          width: 100,
+                                          height: 100,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Container(
+                                              width: 100,
+                                              height: 100,
+                                              color: Colors.white.withAlpha((0.2 * 255).toInt()),
+                                              child: Icon(Icons.broken_image, color: Colors.white, size: 40),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                              ),
+                            ).animate().scaleXY(begin: 0.8, end: 1.0, duration: 600.ms, curve: Curves.easeOutBack),
+                            
+                            const SizedBox(height: 20),
+                            
+                            // Name and Username
+                            Text(
+                              userProfile!["name"] ?? '',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 24,
+                                color: Colors.black,
+                              ),
+                            ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
+                            
+                            const SizedBox(height: 4),
+                            
+                            Text(
+                              "@${userProfile!["username"] ?? "username"}",
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 16,
+                                color: Colors.black.withAlpha((0.8 * 255).toInt()),
+                              ),
+                            ).animate().fadeIn(duration: 400.ms, delay: 300.ms),
+                            
+                            const SizedBox(height: 20),
+                            
+                            // Stats Row
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _buildStatColumn("Posts", allPosts.length.toString()),
+                                if (isOwnProfile) ...[
+                                  _buildStatColumn("Followers", (userProfile!["followerCount"] ?? 0).toString()),
+                                  _buildStatColumn("Following", (userProfile!["followingCount"] ?? 0).toString()),
+                                ],
+                              ],
+                            ).animate().fadeIn(duration: 400.ms, delay: 400.ms),
+                            
+                            // Bio
+                            if (userProfile!["bio"] != null && userProfile!["bio"].toString().isNotEmpty) ...[
+                              const SizedBox(height: 20),
+                              Container(
+                                padding: EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withAlpha((0.1 * 255).toInt()),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: Colors.white.withAlpha((0.2 * 255).toInt()),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  userProfile!["bio"],
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    color: Colors.black.withAlpha((0.9 * 255).toInt()),
+                                    height: 1.4,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ).animate().fadeIn(duration: 400.ms, delay: 500.ms),
+                            ],
+                            
+                            const SizedBox(height: 24),
+                            
+                            // Edit Profile Button
+                            Container(
+                              width: double.infinity,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [primaryColor, secondaryColor],
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                ),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: primaryColor.withAlpha((0.4 * 255).toInt()),
+                                    blurRadius: 15,
+                                    spreadRadius: 0,
+                                    offset: Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton(
+                                onPressed: _editProfile,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.edit, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Edit Profile',
+                                      style: GoogleFonts.poppins(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ).animate().fadeIn(duration: 400.ms, delay: 600.ms),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // Tabs Section
+                      Container(
+                        margin: EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha((0.15 * 255).toInt()),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withAlpha((0.2 * 255).toInt()),
+                            width: 1,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withAlpha((0.1 * 255).toInt()),
+                                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                              ),
+                              child: TabBar(
+                                controller: _tabController!,
+                                indicator: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [primaryColor, secondaryColor],
+                                    begin: Alignment.centerLeft,
+                                    end: Alignment.centerRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                indicatorSize: TabBarIndicatorSize.tab,
+                                indicatorPadding: EdgeInsets.all(8),
+                                labelColor: Color(0xFF6C63FF),
+                                unselectedLabelColor: Color(0xFF6C63FF).withOpacity(0.6),
+                                tabs: [
+                                  Tab(
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.grid_on, size: 20),
+                                        const SizedBox(width: 8),
+                                        Text('Posts', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                                      ],
+                                    ),
+                                  ),
+                                  Tab(
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.category, size: 20),
+                                        const SizedBox(width: 8),
+                                        Text('Portfolio', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.black)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(
+                              height: 400,
+                              child: TabBarView(
+                                controller: _tabController!,
+                                children: [
+                                  _buildProfileGrid(primaryColor),
+                                  _buildPortfolioCategoryList(),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ).animate().fadeIn(duration: 400.ms, delay: 700.ms),
+                      
+                      const SizedBox(height: 24),
+                    ],
                   ),
-                  child: const Text('Edit Profile', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            TabBar(
-              controller: _tabController!,
-              indicatorColor: brandColor,
-              indicatorWeight: 3,
-              labelColor: brandColor,
-              unselectedLabelColor: Colors.black26,
-              tabs: const [
-                Tab(icon: Icon(Icons.grid_on)),
-                Tab(icon: Icon(Icons.category)),
-              ],
-            ),
-            SizedBox(
-              height: 420, // Fixed height for grid, adjust as needed
-              child: TabBarView(
-                controller: _tabController!,
-                children: [
-                  _buildProfileGrid(brandColor),
-                  _buildPortfolioCategoryList(),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -361,13 +798,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                     ? Image.network(post['url'], fit: BoxFit.cover, width: double.infinity, height: double.infinity)
                     : isVideo
                         ? _VideoGridPreview(url: post['url'])
-                        : Container(color: brandColor.withOpacity(0.08)),
+                        : Container(color: brandColor.withAlpha((0.08 * 255).toInt())),
                 Positioned(
                   bottom: 0,
                   left: 0,
                   right: 0,
                   child: Container(
-                    color: Colors.black.withOpacity(0.5),
+                    color: Colors.black.withAlpha((0.5 * 255).toInt()),
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                     child: Row(
                       children: [
@@ -439,7 +876,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withAlpha((0.05 * 255).toInt()),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -470,7 +907,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.7),
+                            color: Colors.black.withAlpha((0.7 * 255).toInt()),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -534,7 +971,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             width: 120,
             height: 120,
             decoration: BoxDecoration(
-              color: const Color(0xFF6C63FF).withOpacity(0.1),
+              color: Color(0xFF6C63FF).withAlpha((0.1 * 255).toInt()),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -593,12 +1030,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           },
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.85),
+              color: Colors.white.withAlpha((0.85 * 255).toInt()),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Color(0xFFE0E0E0), width: 1.2),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: Colors.black.withAlpha((0.08 * 255).toInt()),
                   blurRadius: 18,
                   offset: Offset(0, 8),
                 ),
@@ -611,7 +1048,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   color: Colors.white,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.10),
+                      color: Colors.black.withAlpha((0.10 * 255).toInt()),
                       blurRadius: 8,
                       offset: Offset(0, 2),
                     ),
@@ -649,10 +1086,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           height: MediaQuery.of(context).size.height * 0.82,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-            color: Colors.white.withOpacity(0.95),
+            color: Colors.white.withAlpha((0.95 * 255).toInt()),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.10),
+                color: Colors.black.withAlpha((0.10 * 255).toInt()),
                 blurRadius: 32,
                 offset: Offset(0, 12),
               ),
@@ -716,11 +1153,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       curve: Curves.easeInOut,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
-        color: Colors.white.withOpacity(0.92),
+        color: Colors.white.withAlpha((0.92 * 255).toInt()),
         border: Border.all(color: Color(0xFFE0E0E0), width: 1.1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.10),
+            color: Colors.black.withAlpha((0.10 * 255).toInt()),
             blurRadius: 18,
             offset: Offset(0, 8),
           ),
@@ -741,7 +1178,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                     : Container(
                         height: 120,
                         width: double.infinity,
-                        color: Color(0xFFB0BEC5).withOpacity(0.12),
+                        color: Color(0xFFB0BEC5).withAlpha((0.12 * 255).toInt()),
                         child: Icon(Icons.videocam_rounded, color: Color(0xFF4FC3F7), size: 48),
                       ),
               ),
@@ -755,7 +1192,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Color(0xFF4FC3F7).withOpacity(0.10),
+                            color: Color(0xFF4FC3F7).withAlpha((0.10 * 255).toInt()),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -1005,7 +1442,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
             Center(
               child: CircleAvatar(
                 radius: 44,
-                backgroundColor: brandColor.withOpacity(0.1),
+                backgroundColor: brandColor.withAlpha((0.1 * 255).toInt()),
                 child: (userProfile!["profileImageUrl"] == null || userProfile!["profileImageUrl"].isEmpty)
                     ? Text(
                         userProfile!["name"] != null && userProfile!["name"].isNotEmpty
@@ -1023,7 +1460,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
                             return Container(
                               width: 88,
                               height: 88,
-                              color: brandColor.withOpacity(0.1),
+                              color: brandColor.withAlpha((0.1 * 255).toInt()),
                               child: Icon(Icons.broken_image, color: brandColor, size: 40),
                             );
                           },
@@ -1184,13 +1621,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
                     ? Image.network(post['url'], fit: BoxFit.cover, width: double.infinity, height: double.infinity)
                     : isVideo
                         ? _VideoGridPreview(url: post['url'])
-                        : Container(color: brandColor.withOpacity(0.08)),
+                        : Container(color: brandColor.withAlpha((0.08 * 255).toInt())),
                 Positioned(
                   bottom: 0,
                   left: 0,
                   right: 0,
                   child: Container(
-                    color: Colors.black.withOpacity(0.5),
+                    color: Colors.black.withAlpha((0.5 * 255).toInt()),
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                     child: Row(
                       children: [
