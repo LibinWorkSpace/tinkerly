@@ -479,7 +479,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                               child: CircleAvatar(
                                 radius: 50,
                                 backgroundColor: Colors.white.withAlpha((0.2 * 255).toInt()),
-                                child: (userProfile!["profileImageUrl"] == null || userProfile!["profileImageUrl"].isEmpty)
+                                child: (userProfile!["profileImageUrl"] == null || (userProfile!["profileImageUrl"] ?? '').isEmpty)
                                     ? Text(
                                         userProfile!["name"] != null && userProfile!["name"].isNotEmpty
                                             ? userProfile!["name"][0].toUpperCase()
@@ -492,7 +492,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                       )
                                     : ClipOval(
                                         child: Image.network(
-                                          userProfile!["profileImageUrl"],
+                                          userProfile!["profileImageUrl"] ?? '',
                                           width: 100,
                                           height: 100,
                                           fit: BoxFit.cover,
@@ -547,7 +547,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                             ).animate().fadeIn(duration: 400.ms, delay: 400.ms),
                             
                             // Bio
-                            if (userProfile!["bio"] != null && userProfile!["bio"].toString().isNotEmpty) ...[
+                            if (userProfile!["bio"] != null && (userProfile!["bio"] ?? '').isNotEmpty) ...[
                               const SizedBox(height: 20),
                               Container(
                                 padding: EdgeInsets.all(16),
@@ -1297,12 +1297,12 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                           final updatedCategories = [...currentCategories, ...selected];
                           // Save to backend
                           await UserService.saveUserProfile(
-                            userProfile!["name"],
-                            userProfile!["email"],
-                            userProfile!["profileImageUrl"],
+                            userProfile!["name"] ?? '',
+                            userProfile!["email"] ?? '',
+                            userProfile!["profileImageUrl"] ?? '',
                             updatedCategories,
-                            userProfile!["username"],
-                            userProfile!["bio"],
+                            userProfile!["username"] ?? '',
+                            userProfile!["bio"] ?? '',
                           );
                           // Refresh profile from backend
                           await loadProfileAndPosts();
@@ -1443,7 +1443,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
               child: CircleAvatar(
                 radius: 44,
                 backgroundColor: brandColor.withAlpha((0.1 * 255).toInt()),
-                child: (userProfile!["profileImageUrl"] == null || userProfile!["profileImageUrl"].isEmpty)
+                child: (userProfile!["profileImageUrl"] == null || (userProfile!["profileImageUrl"] ?? '').isEmpty)
                     ? Text(
                         userProfile!["name"] != null && userProfile!["name"].isNotEmpty
                             ? userProfile!["name"][0].toUpperCase()
@@ -1452,7 +1452,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
                       )
                     : ClipOval(
                         child: Image.network(
-                          userProfile!["profileImageUrl"],
+                          userProfile!["profileImageUrl"] ?? '',
                           width: 88,
                           height: 88,
                           fit: BoxFit.cover,
@@ -1494,7 +1494,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
               ],
             ),
             const SizedBox(height: 12),
-            if (userProfile!["bio"] != null && userProfile!["bio"].toString().isNotEmpty)
+            if (userProfile!["bio"] != null && (userProfile!["bio"] ?? '').isNotEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32.0),
                 child: Text(

@@ -455,20 +455,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
           final url = await UserService.uploadFile((_profileImageFileOrBytes as File).path);
           imageUrl = url;
         }
-        await UserService.saveUserProfile(
-          _pendingRegistrationData!['name'],
-          _pendingRegistrationData!['email'],
-          imageUrl,
-          _pendingRegistrationData!['categories'],
-          _pendingRegistrationData!['username'],
-          null,
-          phone: _pendingRegistrationData!['phone'],
-          isPhoneVerified: _pendingOtpMethod == 'phone',
-        );
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registration successful! Please login.')),
-        );
-        Navigator.pushReplacementNamed(context, '/login');
+        try {
+          await UserService.saveUserProfile(
+            _pendingRegistrationData!['name'],
+            _pendingRegistrationData!['email'],
+            imageUrl,
+            _pendingRegistrationData!['categories'],
+            _pendingRegistrationData!['username'],
+            null,
+            phone: _pendingRegistrationData!['phone'],
+            isPhoneVerified: _pendingOtpMethod == 'phone',
+          );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Registration successful! Please login.')),
+          );
+          Navigator.pushReplacementNamed(context, '/login');
+        } catch (e) {
+          // Rollback: delete Firebase user if backend registration fails
+          try {
+            await user.delete();
+          } catch (deleteError) {
+            print('Failed to delete Firebase user after backend failure: $deleteError');
+          }
+          print('Registration error: $e');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Registration failed: $e')),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Registration failed.')),

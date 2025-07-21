@@ -366,10 +366,10 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
                   ),
                   child: CircleAvatar(
                     backgroundColor: Color(0xFFF7FAFC),
-                    backgroundImage: post['profileImageUrl'] != null && post['profileImageUrl'].isNotEmpty
-                        ? NetworkImage(post['profileImageUrl'])
+                    backgroundImage: (post['profileImageUrl'] ?? '').isNotEmpty
+                        ? NetworkImage(post['profileImageUrl']!)
                         : null,
-                    child: (post['profileImageUrl'] == null || post['profileImageUrl'].isEmpty)
+                    child: (post['profileImageUrl'] == null || (post['profileImageUrl'] ?? '').isEmpty)
                         ? Icon(Icons.person, color: Color(0xFF6C63FF), size: 20)
                         : null,
                     radius: 22,

@@ -8,28 +8,49 @@ import '../constants/api_constants.dart';
 
 class UserService {
   // Save or update user profile
-  static Future<void> saveUserProfile(String name, String email, String? profileImageUrl, List<String> categories, String username, String? bio, {String? phone, bool? isPhoneVerified}) async {
+  static Future<bool> saveUserProfile(String name, String email, String? profileImageUrl, List<String> categories, String username, String? bio, {String? phone, bool? isPhoneVerified, bool isEdit = false}) async {
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
-    final body = {
+    final Map<String, dynamic> body = {
       'name': name,
-      'email': email,
-      'phone': phone,
       'profileImageUrl': profileImageUrl,
       'categories': categories,
       'username': username,
       'bio': bio,
       if (isPhoneVerified != null) 'isPhoneVerified': isPhoneVerified,
     };
-    final response = await http.post(
-      Uri.parse('${ApiConstants.baseUrl}/user'),
-      headers: {
-        'Authorization': 'Bearer $idToken',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode(body),
+    if (phone != null && phone.isNotEmpty) {
+      body['phone'] = phone;
+    }
+    // Remove null or empty string fields (except for categories)
+    body.removeWhere((key, value) => value == null || (value is String && value.isEmpty && key != 'phone'));
+    final url = isEdit
+      ? Uri.parse('${ApiConstants.baseUrl}/user')
+      : Uri.parse('${ApiConstants.baseUrl}/user');
+    final response = await (isEdit
+      ? http.put(
+          url,
+          headers: {
+            'Authorization': 'Bearer $idToken',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(body),
+        )
+      : http.post(
+          url,
+          headers: {
+            'Authorization': 'Bearer $idToken',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            ...body,
+            'email': email,
+          }),
+        )
     );
-    if (response.statusCode != 200) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return true;
+    } else {
       throw Exception('Failed to save user profile');
     }
   }

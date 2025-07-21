@@ -43,11 +43,11 @@ class AppUser {
 
   factory AppUser.fromMap(Map<String, dynamic> map) {
     return AppUser(
-      uid: map['uid'],
-      email: map['email'],
-      categories: List<String>.from(map['categories']),
-      name: map['name'],
-      username: map['username'] ?? map['name'].toLowerCase().replaceAll(' ', '_'),
+      uid: map['uid'] ?? '',
+      email: map['email'] ?? '',
+      categories: List<String>.from(map['categories'] ?? []),
+      name: map['name'] ?? '',
+      username: map['username'] ?? (map['name'] ?? '').toLowerCase().replaceAll(' ', '_'),
       bio: map['bio'],
       profileImageUrl: map['profileImageUrl'],
       createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt']) : null,

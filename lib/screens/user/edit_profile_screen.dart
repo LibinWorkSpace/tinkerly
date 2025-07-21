@@ -484,17 +484,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
     }
 
-    await UserService.saveUserProfile(
+    final success = await UserService.saveUserProfile(
       _nameController.text.trim(),
-      widget.user.email,
+      widget.user.email, // still required for registration, ignored for edit
       _profileImageUrl,
       _selectedCategories,
       _usernameController.text.trim(),
       _bioController.text.trim(),
+      isEdit: true,
     );
 
-    if (mounted) {
+    if (success && mounted) {
       Navigator.pop(context, true);
+    } else if (!success) {
+      // Optionally show error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update profile.')),
+      );
     }
   }
 }
