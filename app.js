@@ -166,9 +166,11 @@ app.use(async (req, res, next) => {
       req.user = decodedToken;
       next();
     } catch (err) {
+      console.error('Firebase token verification failed:', err);
       return res.status(401).json({ error: 'Unauthorized' });
     }
   } else {
+    console.error('No token provided in Authorization header');
     return res.status(401).json({ error: 'No token provided' });
   }
 });
@@ -220,43 +222,56 @@ app.post('/user', async (req, res) => {
       console.error('POST /user error: Missing uid in req.user');
       return res.status(400).json({ error: 'Missing uid in token' });
     }
-
-    // Build updateFields object only with defined values
-    const updateFields = {};
-    if (name !== undefined) updateFields.name = name;
-    if (email !== undefined) updateFields.email = email;
-    if (phone !== undefined && phone !== null) updateFields.phone = phone;
-    if (profileImageUrl !== undefined) updateFields.profileImageUrl = profileImageUrl;
-    if (categories !== undefined) updateFields.categories = categories;
-    if (username !== undefined) updateFields.username = username;
-    if (bio !== undefined) updateFields.bio = bio;
-
-    // Check if phone is already used by another user
-    if (updateFields.phone) {
-      const existingUserWithPhone = await User.findOne({ phone: updateFields.phone, uid: { $ne: uid } });
-      if (existingUserWithPhone) {
-        return res.status(409).json({ error: 'Phone number already in use by another user.' });
-      }
+    // Check if a user with this email already exists
+    let user = await User.findOne({ email });
+    if (user) {
+      // User exists, return existing user data (do not update)
+      return res.status(200).json(user);
     }
-
-    let user;
-    try {
-      user = await User.findOneAndUpdate(
-        { uid },
-        updateFields,
-        { upsert: true, new: true }
-      );
-    } catch (err) {
-      // Handle duplicate key error (race condition)
-      if (err.code === 11000 && err.keyPattern && err.keyPattern.phone) {
-        return res.status(409).json({ error: 'Phone number already in use.' });
-      }
-      throw err;
+    // Only include fields that are not null or undefined
+    const newUserFields = { uid, name, email, profileImageUrl, categories, username, bio };
+    if (phone !== undefined && phone !== null && phone !== '') {
+      newUserFields.phone = phone;
     }
-    res.json(user);
+    user = new User(newUserFields);
+    await user.save();
+    res.status(201).json(user);
   } catch (err) {
+    if (err.name === 'MongoServerError' && err.code === 11000) {
+      console.error('POST /user duplicate key error:', err);
+      return res.status(409).json({ error: 'Duplicate key error', details: err.message });
+    }
     console.error('POST /user error:', err);
     res.status(500).json({ error: 'Failed to save user profile', details: err.message });
+  }
+});
+
+// Edit user profile (update allowed fields)
+app.put('/user', async (req, res) => {
+  try {
+    const uid = req.user && req.user.uid;
+    if (!uid) {
+      return res.status(400).json({ error: 'Missing uid in token' });
+    }
+    const { name, phone, profileImageUrl, categories, username, bio } = req.body;
+    // Only allow updating these fields if they are not null or undefined
+    const updateFields = {};
+    if (name !== undefined && name !== null) updateFields.name = name;
+    if (phone !== undefined && phone !== null && phone !== '') updateFields.phone = phone;
+    if (profileImageUrl !== undefined && profileImageUrl !== null) updateFields.profileImageUrl = profileImageUrl;
+    if (categories !== undefined && categories !== null) updateFields.categories = categories;
+    if (username !== undefined && username !== null) updateFields.username = username;
+    if (bio !== undefined && bio !== null) updateFields.bio = bio;
+    const user = await User.findOneAndUpdate(
+      { uid },
+      updateFields,
+      { new: true }
+    );
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    console.error('PUT /user error:', err);
+    res.status(500).json({ error: 'Failed to update user profile', details: err.message });
   }
 });
 
