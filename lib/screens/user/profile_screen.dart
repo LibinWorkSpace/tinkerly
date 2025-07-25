@@ -254,8 +254,6 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     
     final primaryColor = Color(0xFF6C63FF);
     final secondaryColor = Color(0xFFFF6B9D);
-    // Debug print for profile image URL
-    print('Profile image URL:  [32m${userProfile!["profileImageUrl"]} [0m');
     // Only show follower/following counts if this is the logged-in user's profile
     final isOwnProfile = true; // This screen is only for the logged-in user
     final bool phoneNotVerified = userProfile!["isPhoneVerified"] != true;
@@ -753,89 +751,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               ),
             );
           },
-          child: _buildPostGridCard(post, brandColor),
-        );
-      },
-    );
-  }
-
-  Widget _buildPostGridCard(dynamic post, Color brandColor) {
-    final isImage = post['mediaType'] == 'image';
-    final isVideo = post['mediaType'] == 'video';
-    final currentUid = FirebaseAuth.instance.currentUser?.uid;
-    final bool isLiked = (post['likedBy'] ?? []).contains(currentUid);
-    int likeCount = post['likes'] ?? 0;
-    return StatefulBuilder(
-      builder: (context, setState) {
-        Future<void> _toggleLike() async {
-          if (isLiked) {
-            final success = await UserService.unlikePost(post['_id']);
-            if (success) {
-              setState(() {
-                post['likedBy'].remove(currentUid);
-                post['likes'] = (post['likes'] ?? 1) - 1;
-              });
-            }
-          } else {
-            final success = await UserService.likePost(post['_id']);
-            if (success) {
-              setState(() {
-                post['likedBy'].add(currentUid);
-                post['likes'] = (post['likes'] ?? 0) + 1;
-              });
-            }
-          }
-        }
-        return Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          elevation: 2,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Stack(
-              children: [
-                isImage
-                    ? Image.network(post['url'], fit: BoxFit.cover, width: double.infinity, height: double.infinity)
-                    : isVideo
-                        ? _VideoGridPreview(url: post['url'])
-                        : Container(color: brandColor.withAlpha((0.08 * 255).toInt())),
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    color: Colors.black.withAlpha((0.5 * 255).toInt()),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                    child: Row(
-                      children: [
-                        GestureDetector(
-                          onTap: _toggleLike,
-                          child: Row(
-                            children: [
-                              Icon(
-                                isLiked ? Icons.favorite : Icons.favorite_border,
-                                size: 18,
-                                color: isLiked ? Colors.pinkAccent : Colors.white,
-                              ),
-                              const SizedBox(width: 2),
-                              Text('${post['likes'] ?? 0}', style: const TextStyle(color: Colors.white, fontSize: 12)),
-                            ],
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          post['description'] ?? '',
-                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          child: buildPostGridCard(post, brandColor, null),
         );
       },
     );
@@ -1008,65 +924,18 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildPortfolioCategoryList() {
-    final registeredCategories = List<String>.from(userProfile?['categories'] ?? []);
-    if (registeredCategories.isEmpty) {
-      return Center(child: Text('No portfolios yet'));
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-      itemCount: registeredCategories.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 18),
-      itemBuilder: (context, index) {
-        final category = registeredCategories[index];
-        return InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: () async {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (context) => _buildAttractivePortfolioModal(category),
-            );
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withAlpha((0.85 * 255).toInt()),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Color(0xFFE0E0E0), width: 1.2),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha((0.08 * 255).toInt()),
-                  blurRadius: 18,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: ListTile(
-              leading: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha((0.10 * 255).toInt()),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(8),
-                child: Icon(Icons.folder_special_rounded, color: Color(0xFF4FC3F7), size: 28),
-              ),
-              title: Text(
-                category,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: Color(0xFF263238),
-                  letterSpacing: 0.5,
-                ),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFB0BEC5), size: 20),
+    return PortfolioCategoryList(
+      userProfile: userProfile!,
+      allPosts: allPosts,
+      onPortfolioTap: (user, category, posts) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PortfolioScreen(
+              user: user,
+              portfolioName: category,
+              portfolioDescription: '',
+              posts: posts,
             ),
           ),
         );
@@ -1319,6 +1188,311 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 }
 
+// Extract a reusable profile header widget
+class ProfileHeaderCard extends StatelessWidget {
+  final Map<String, dynamic> userProfile;
+  final int postCount;
+  final bool showFollowStats;
+  final int? followerCount;
+  final int? followingCount;
+  final String? buttonText;
+  final VoidCallback? onButtonPressed;
+  final bool isButtonLoading;
+  final bool showButton;
+
+  const ProfileHeaderCard({
+    required this.userProfile,
+    required this.postCount,
+    this.showFollowStats = true,
+    this.followerCount,
+    this.followingCount,
+    this.buttonText,
+    this.onButtonPressed,
+    this.isButtonLoading = false,
+    this.showButton = false,
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = Color(0xFF6C63FF);
+    final secondaryColor = Color(0xFFFF6B9D);
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withAlpha((0.2 * 255).toInt()),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha((0.1 * 255).toInt()),
+            blurRadius: 20,
+            spreadRadius: 0,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Profile Image
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withAlpha((0.3 * 255).toInt()),
+                width: 3,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: primaryColor.withAlpha((0.3 * 255).toInt()),
+                  blurRadius: 20,
+                  spreadRadius: 0,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: CircleAvatar(
+              radius: 50,
+              backgroundColor: Colors.white.withAlpha((0.2 * 255).toInt()),
+              child: (userProfile["profileImageUrl"] == null || (userProfile["profileImageUrl"] ?? '').isEmpty)
+                  ? Text(
+                      userProfile["name"] != null && userProfile["name"].isNotEmpty
+                          ? userProfile["name"][0].toUpperCase()
+                          : "N",
+                      style: GoogleFonts.poppins(
+                        fontSize: 36,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : ClipOval(
+                      child: Image.network(
+                        userProfile["profileImageUrl"] ?? '',
+                        width: 100,
+                        height: 100,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            width: 100,
+                            height: 100,
+                            color: Colors.white.withAlpha((0.2 * 255).toInt()),
+                            child: Icon(Icons.broken_image, color: Colors.white, size: 40),
+                          );
+                        },
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Name and Username
+          Text(
+            userProfile["name"] ?? '',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.bold,
+              fontSize: 24,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "@${userProfile["username"] ?? "username"}",
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w500,
+              fontSize: 16,
+              color: Colors.black.withAlpha((0.8 * 255).toInt()),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Stats Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildStatColumn("Posts", postCount.toString()),
+              if (showFollowStats) ...[
+                _buildStatColumn("Followers", (followerCount ?? 0).toString()),
+                _buildStatColumn("Following", (followingCount ?? 0).toString()),
+              ],
+            ],
+          ),
+          // Bio
+          if (userProfile["bio"] != null && (userProfile["bio"] ?? '').isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha((0.1 * 255).toInt()),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withAlpha((0.2 * 255).toInt()),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                userProfile["bio"],
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.black.withAlpha((0.9 * 255).toInt()),
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+          const SizedBox(height: 24),
+          // Follow/Unfollow or Edit Profile Button
+          if (showButton)
+            Container(
+              width: double.infinity,
+              height: 50,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [primaryColor, secondaryColor],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryColor.withAlpha((0.4 * 255).toInt()),
+                    blurRadius: 15,
+                    spreadRadius: 0,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: ElevatedButton(
+                onPressed: isButtonLoading ? null : onButtonPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: isButtonLoading
+                    ? SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (buttonText == 'Edit Profile') Icon(Icons.edit, size: 20),
+                          if (buttonText == 'Edit Profile') const SizedBox(width: 8),
+                          Text(
+                            buttonText ?? '',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatColumn(String label, String value) {
+    return Column(
+      children: [
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 13, color: Colors.black54)),
+      ],
+    );
+  }
+}
+
+// Move _buildPostGridCard to a shared function
+Widget buildPostGridCard(dynamic post, Color brandColor, VoidCallback? onLike) {
+  final isImage = post['mediaType'] == 'image';
+  final isVideo = post['mediaType'] == 'video';
+  final currentUid = FirebaseAuth.instance.currentUser?.uid;
+  final bool isLiked = (post['likedBy'] ?? []).contains(currentUid);
+  int likeCount = post['likes'] ?? 0;
+  return StatefulBuilder(
+    builder: (context, setState) {
+      Future<void> _toggleLike() async {
+        if (isLiked) {
+          final success = await UserService.unlikePost(post['_id']);
+          if (success) {
+            setState(() {
+              post['likedBy'].remove(currentUid);
+              post['likes'] = (post['likes'] ?? 1) - 1;
+            });
+          }
+        } else {
+          final success = await UserService.likePost(post['_id']);
+          if (success) {
+            setState(() {
+              post['likedBy'].add(currentUid);
+              post['likes'] = (post['likes'] ?? 0) + 1;
+            });
+          }
+        }
+        if (onLike != null) onLike();
+      }
+      return Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        elevation: 2,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              isImage
+                  ? Image.network(post['url'], fit: BoxFit.cover, width: double.infinity, height: double.infinity)
+                  : isVideo
+                      ? _VideoGridPreview(url: post['url'])
+                      : Container(color: brandColor.withAlpha((0.08 * 255).toInt())),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  color: Colors.black.withAlpha((0.5 * 255).toInt()),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: _toggleLike,
+                        child: Row(
+                          children: [
+                            Icon(
+                              isLiked ? Icons.favorite : Icons.favorite_border,
+                              size: 18,
+                              color: isLiked ? Colors.pinkAccent : Colors.white,
+                            ),
+                            const SizedBox(width: 2),
+                            Text('${post['likes'] ?? 0}', style: const TextStyle(color: Colors.white, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        post['description'] ?? '',
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+// Refactor PublicProfileScreen to use the same UI as ProfileScreen
 class PublicProfileScreen extends StatefulWidget {
   final String uid;
   const PublicProfileScreen({Key? key, required this.uid}) : super(key: key);
@@ -1334,7 +1508,6 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
   bool isLoading = true;
   bool isError = false;
   bool isFollowing = false;
-  int _selectedIndex = -1; // -1 means not from navbar
 
   @override
   void initState() {
@@ -1390,7 +1563,6 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
         }
         isLoading = false;
       });
-      // Do NOT pop the screen
       return;
     }
     setState(() { isLoading = false; });
@@ -1403,7 +1575,6 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
   }
 
   void _onNavTap(int index) {
-    // Pop to root and pass the tab index to HomeScreen
     Navigator.of(context).popUntil((route) => route.isFirst);
     Future.delayed(Duration.zero, () {
       HomeScreen.switchToTab(index);
@@ -1412,15 +1583,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
 
   @override
   Widget build(BuildContext context) {
-    final brandColor = Color(0xFF4267B2);
-    if (isLoading) {
+    if (isLoading || userProfile == null || _tabController == null) {
       return Scaffold(
         appBar: AppBar(title: Text('Profile'), backgroundColor: Colors.white, elevation: 0, iconTheme: IconThemeData(color: Colors.black)),
         body: Center(child: CircularProgressIndicator()),
         bottomNavigationBar: MainBottomNavBar(currentIndex: 4, onTap: _onNavTap),
       );
     }
-    if (isError || userProfile == null) {
+    if (isError) {
       return Scaffold(
         appBar: AppBar(title: Text('Profile'), backgroundColor: Colors.white, elevation: 0, iconTheme: IconThemeData(color: Colors.black)),
         body: Center(child: Text('Failed to load profile.')),
@@ -1428,137 +1598,89 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
       );
     }
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Color(0xFFFAFAFA),
       appBar: AppBar(
         title: Text(userProfile!["name"] ?? ''),
         backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.black),
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            const SizedBox(height: 16),
-            Center(
-              child: CircleAvatar(
-                radius: 44,
-                backgroundColor: brandColor.withAlpha((0.1 * 255).toInt()),
-                child: (userProfile!["profileImageUrl"] == null || (userProfile!["profileImageUrl"] ?? '').isEmpty)
-                    ? Text(
-                        userProfile!["name"] != null && userProfile!["name"].isNotEmpty
-                            ? userProfile!["name"][0].toUpperCase()
-                            : "N",
-                        style: TextStyle(fontSize: 40, color: brandColor, fontWeight: FontWeight.bold),
-                      )
-                    : ClipOval(
-                        child: Image.network(
-                          userProfile!["profileImageUrl"] ?? '',
-                          width: 88,
-                          height: 88,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: 88,
-                              height: 88,
-                              color: brandColor.withAlpha((0.1 * 255).toInt()),
-                              child: Icon(Icons.broken_image, color: brandColor, size: 40),
-                            );
-                          },
+      body: Container(
+        color: Color(0xFFFAFAFA),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 20),
+                ProfileHeaderCard(
+                  userProfile: userProfile!,
+                  postCount: allPosts.length,
+                  showFollowStats: false, // Hide follow/following for public
+                  buttonText: isFollowing ? 'Unfollow' : 'Follow',
+                  onButtonPressed: _toggleFollow,
+                  isButtonLoading: isLoading,
+                  showButton: true,
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  margin: EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha((0.15 * 255).toInt()),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: TabBar(
+                    controller: _tabController!,
+                    indicatorColor: Color(0xFF6C63FF),
+                    indicatorWeight: 3,
+                    labelColor: Color(0xFF6C63FF),
+                    unselectedLabelColor: Colors.black26,
+                    tabs: [
+                      Tab(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.grid_on, size: 20),
+                            const SizedBox(width: 8),
+                            Text('Posts', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                          ],
                         ),
                       ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Center(
-              child: Text(
-                userProfile!["name"] ?? '',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.black),
-              ),
-            ),
-            Center(
-              child: Text(
-                "@${userProfile!["username"] ?? "username"}",
-                style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15, color: Colors.black54),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildStatColumn("Posts", allPosts.length.toString()),
-                // Remove follower/following counts for public profile
-                // _verticalDivider(),
-                // _buildStatColumn("Followers", (userProfile!["followerCount"] ?? 0).toString()),
-                // _verticalDivider(),
-                // _buildStatColumn("Following", (userProfile!["followingCount"] ?? 0).toString()),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (userProfile!["bio"] != null && (userProfile!["bio"] ?? '').isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: Text(
-                  userProfile!["bio"],
-                  style: const TextStyle(fontSize: 15, color: Colors.black87),
-                  textAlign: TextAlign.center,
+                      Tab(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.category, size: 20),
+                            const SizedBox(width: 8),
+                            Text('Portfolio', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.black)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: isLoading ? null : _toggleFollow,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isFollowing ? Colors.grey[300] : brandColor,
-                foregroundColor: isFollowing ? Colors.black : Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              ),
-              child: Text(isFollowing ? 'Unfollow' : 'Follow', style: const TextStyle(fontSize: 16)),
-            ),
-            const SizedBox(height: 16),
-            TabBar(
-              controller: _tabController!,
-              indicatorColor: brandColor,
-              indicatorWeight: 3,
-              labelColor: brandColor,
-              unselectedLabelColor: Colors.black26,
-              tabs: const [
-                Tab(icon: Icon(Icons.grid_on)),
-                Tab(icon: Icon(Icons.category)),
+                // Use a SizedBox to constrain TabBarView height, but wrap in LayoutBuilder for responsiveness
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final availableHeight = MediaQuery.of(context).size.height - 350; // Adjust as needed
+                    return SizedBox(
+                      height: availableHeight > 300 ? availableHeight : 300,
+                      child: TabBarView(
+                        controller: _tabController!,
+                        children: [
+                          _buildProfileGrid(Color(0xFF6C63FF)),
+                          _buildPortfolioCategoryList(),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
-            SizedBox(
-              height: 420,
-              child: TabBarView(
-                controller: _tabController!,
-                children: [
-                  _buildProfileGrid(brandColor),
-                  _buildPortfolioCategoryList(),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
       bottomNavigationBar: MainBottomNavBar(currentIndex: 4, onTap: _onNavTap),
-    );
-  }
-
-  Widget _buildStatColumn(String label, String value) {
-    return Column(
-      children: [
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 13, color: Colors.black54)),
-      ],
-    );
-  }
-
-  Widget _verticalDivider() {
-    return Container(
-      height: 28,
-      width: 1.5,
-      color: Colors.grey.shade300,
-      margin: const EdgeInsets.symmetric(horizontal: 18),
     );
   }
 
@@ -1577,96 +1699,121 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
       itemCount: allPosts.length,
       itemBuilder: (context, index) {
         final post = allPosts[index];
-        return _buildPostGridCard(post, brandColor);
-      },
-    );
-  }
-
-  Widget _buildPostGridCard(dynamic post, Color brandColor) {
-    final isImage = post['mediaType'] == 'image';
-    final isVideo = post['mediaType'] == 'video';
-    final currentUid = FirebaseAuth.instance.currentUser?.uid;
-    final bool isLiked = (post['likedBy'] ?? []).contains(currentUid);
-    int likeCount = post['likes'] ?? 0;
-    return StatefulBuilder(
-      builder: (context, setState) {
-        Future<void> _toggleLike() async {
-          if (isLiked) {
-            final success = await UserService.unlikePost(post['_id']);
-            if (success) {
-              setState(() {
-                post['likedBy'].remove(currentUid);
-                post['likes'] = (post['likes'] ?? 1) - 1;
-              });
-            }
-          } else {
-            final success = await UserService.likePost(post['_id']);
-            if (success) {
-              setState(() {
-                post['likedBy'].add(currentUid);
-                post['likes'] = (post['likes'] ?? 0) + 1;
-              });
-            }
-          }
-        }
-        return Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          elevation: 2,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Stack(
-              children: [
-                isImage
-                    ? Image.network(post['url'], fit: BoxFit.cover, width: double.infinity, height: double.infinity)
-                    : isVideo
-                        ? _VideoGridPreview(url: post['url'])
-                        : Container(color: brandColor.withAlpha((0.08 * 255).toInt())),
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    color: Colors.black.withAlpha((0.5 * 255).toInt()),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                    child: Row(
-                      children: [
-                        GestureDetector(
-                          onTap: _toggleLike,
-                          child: Row(
-                            children: [
-                              Icon(
-                                isLiked ? Icons.favorite : Icons.favorite_border,
-                                size: 18,
-                                color: isLiked ? Colors.pinkAccent : Colors.white,
-                              ),
-                              const SizedBox(width: 2),
-                              Text('${post['likes'] ?? 0}', style: const TextStyle(color: Colors.white, fontSize: 12)),
-                            ],
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          post['description'] ?? '',
-                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => UserPostsFeedScreen(
+                  posts: allPosts,
+                  initialPostId: post['_id'],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
+          child: buildPostGridCard(post, brandColor, null),
         );
       },
     );
   }
 
   Widget _buildPortfolioCategoryList() {
-    // You can implement this similar to your own profile, or show a message
-    return Center(child: Text('Portfolio categories coming soon...'));
+    return PortfolioCategoryList(
+      userProfile: userProfile!,
+      allPosts: allPosts,
+      onPortfolioTap: (user, category, posts) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PortfolioScreen(
+              user: user,
+              portfolioName: category,
+              portfolioDescription: '',
+              posts: posts,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class PortfolioCategoryList extends StatelessWidget {
+  final Map<String, dynamic> userProfile;
+  final List<dynamic> allPosts;
+  final void Function(AppUser user, String category, List<PortfolioPost> posts) onPortfolioTap;
+  const PortfolioCategoryList({required this.userProfile, required this.allPosts, required this.onPortfolioTap, Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final registeredCategories = List<String>.from(userProfile['categories'] ?? []);
+    if (registeredCategories.isEmpty) {
+      return Center(child: Text('No portfolios yet'));
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      itemCount: registeredCategories.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 18),
+      itemBuilder: (context, index) {
+        final category = registeredCategories[index];
+        final postsInCategory = allPosts.where((p) => p['category'] == category).toList();
+        final portfolioPosts = postsInCategory.map((p) => PortfolioPost(
+          id: p['_id'] ?? '',
+          title: p['title'] ?? '',
+          description: p['description'] ?? '',
+          category: p['category'] ?? '',
+          imageUrl: p['imageUrl'] ?? p['url'] ?? '',
+          likes: p['likes'] ?? 0,
+          views: p['views'] ?? 0,
+          date: DateTime.tryParse(p['date'] ?? '') ?? DateTime.now(),
+        )).toList();
+        return InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => onPortfolioTap(AppUser.fromMap(userProfile), category, portfolioPosts),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha((0.85 * 255).toInt()),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Color(0xFFE0E0E0), width: 1.2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha((0.08 * 255).toInt()),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ListTile(
+              leading: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha((0.10 * 255).toInt()),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(8),
+                child: Icon(Icons.folder_special_rounded, color: Color(0xFF4FC3F7), size: 28),
+              ),
+              title: Text(
+                category,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Color(0xFF263238),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFB0BEC5), size: 20),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
