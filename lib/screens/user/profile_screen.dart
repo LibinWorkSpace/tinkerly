@@ -5,8 +5,6 @@ import '../auth/login_screen.dart';
 import '../auth/phone_verification_screen.dart';
 import 'edit_profile_screen.dart';
 import '../../models/user_model.dart';
-import 'portfolio_screen.dart'; // Added import for PortfolioScreen
-import '../../constants/categories.dart';
 import 'package:video_player/video_player.dart';
 import 'user_posts_feed_screen.dart';
 import '../../widgets/main_bottom_nav_bar.dart';
@@ -17,6 +15,7 @@ import '../auth/phone_verification_screen.dart'; // Ensure import for phone veri
 import '../auth/phone_status_screen.dart'; // Added import for PhoneStatusScreen
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../constants/categories.dart';
 
 final GlobalKey<_ProfileScreenState> profileScreenKey = GlobalKey<_ProfileScreenState>();
 
@@ -33,6 +32,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   List<String> categories = [];
   bool _hasError = false;
   bool _isLoading = true;
+  String? _selectedPortfolioCategory;
 
   @override
   void initState() {
@@ -924,21 +924,128 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildPortfolioCategoryList() {
+    if (_selectedPortfolioCategory != null) {
+      final category = _selectedPortfolioCategory!;
+      final postsInCategory = allPosts.where((p) => p['category'] == category).toList();
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+            // Back button
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                icon: Icon(Icons.arrow_back, color: Color(0xFF6C63FF)),
+                onPressed: () {
+                  setState(() {
+                    _selectedPortfolioCategory = null;
+                  });
+                },
+              ),
+            ),
+            // Portfolio header (same style as profile)
+            Container(
+              margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withAlpha((0.2 * 255).toInt()),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha((0.1 * 255).toInt()),
+                    blurRadius: 20,
+                    spreadRadius: 0,
+                    offset: Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  // Portfolio Icon
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withAlpha((0.3 * 255).toInt()),
+                        width: 3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF6C63FF).withAlpha((0.3 * 255).toInt()),
+                          blurRadius: 20,
+                          spreadRadius: 0,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: const CircleAvatar(
+                      radius: 40,
+                      backgroundColor: Color(0xFF6C63FF),
+                      child: Icon(Icons.folder_special_rounded, color: Colors.white, size: 40),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Portfolio Name
+                  Text(
+                    category,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 22,
+                      color: Colors.black,
+                    ),
+                  ),
+                  // Description (not available, so empty)
+                  // Stats Row
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildStatColumn("Posts", postsInCategory.length.toString()),
+                      _buildStatColumn("Followers", "0"),
+                      _buildStatColumn("Following", "0"),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // Posts grid/list for this portfolio
+            postsInCategory.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Text('No posts in this portfolio yet', style: TextStyle(fontSize: 16, color: Colors.black54)),
+                  )
+                : GridView.builder(
+                    shrinkWrap: true,
+                    physics: NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      childAspectRatio: 0.8,
+                    ),
+                    itemCount: postsInCategory.length,
+                    itemBuilder: (context, index) {
+                      final post = postsInCategory[index];
+                      return buildPostGridCard(post, Color(0xFF6C63FF), null);
+                    },
+                  ),
+          ],
+        ),
+      );
+    }
+    // Default: show portfolio list
     return PortfolioCategoryList(
       userProfile: userProfile!,
       allPosts: allPosts,
       onPortfolioTap: (user, category, posts) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PortfolioScreen(
-              user: user,
-              portfolioName: category,
-              portfolioDescription: '',
-              posts: posts,
-            ),
-          ),
-        );
+        setState(() {
+          _selectedPortfolioCategory = category;
+        });
       },
     );
   }
@@ -1725,12 +1832,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => PortfolioScreen(
-              user: user,
-              portfolioName: category,
-              portfolioDescription: '',
-              posts: posts,
-            ),
+            builder: (_) => PublicProfileScreen(uid: user.uid), // Assuming user object has a uid
           ),
         );
       },
@@ -1741,7 +1843,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
 class PortfolioCategoryList extends StatelessWidget {
   final Map<String, dynamic> userProfile;
   final List<dynamic> allPosts;
-  final void Function(AppUser user, String category, List<PortfolioPost> posts) onPortfolioTap;
+  final void Function(AppUser user, String category, List<Map<String, dynamic>> posts) onPortfolioTap;
   const PortfolioCategoryList({required this.userProfile, required this.allPosts, required this.onPortfolioTap, Key? key}) : super(key: key);
 
   @override
@@ -1757,19 +1859,9 @@ class PortfolioCategoryList extends StatelessWidget {
       itemBuilder: (context, index) {
         final category = registeredCategories[index];
         final postsInCategory = allPosts.where((p) => p['category'] == category).toList();
-        final portfolioPosts = postsInCategory.map((p) => PortfolioPost(
-          id: p['_id'] ?? '',
-          title: p['title'] ?? '',
-          description: p['description'] ?? '',
-          category: p['category'] ?? '',
-          imageUrl: p['imageUrl'] ?? p['url'] ?? '',
-          likes: p['likes'] ?? 0,
-          views: p['views'] ?? 0,
-          date: DateTime.tryParse(p['date'] ?? '') ?? DateTime.now(),
-        )).toList();
         return InkWell(
           borderRadius: BorderRadius.circular(20),
-          onTap: () => onPortfolioTap(AppUser.fromMap(userProfile), category, portfolioPosts),
+          onTap: () => onPortfolioTap(AppUser.fromMap(userProfile), category, postsInCategory.cast<Map<String, dynamic>>()),
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white.withAlpha((0.85 * 255).toInt()),

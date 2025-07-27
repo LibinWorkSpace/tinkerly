@@ -7,6 +7,7 @@ import '../../widgets/main_bottom_nav_bar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../models/user_model.dart';
 
 class HomeScreen extends StatefulWidget {
   static final GlobalKey<_HomeScreenState> homeScreenKey = GlobalKey<_HomeScreenState>();
@@ -270,7 +271,7 @@ class _HomeFeedState extends State<HomeFeed> {
             cacheExtent: 2000,
             itemBuilder: (context, index) {
               final post = posts[index];
-              return _InstagramPostCard(post: post).animate().fadeIn(
+              return _InstagramPostCard(post: post, allPosts: posts).animate().fadeIn(
                 duration: 400.ms,
                 delay: (index * 100).ms,
               );
@@ -284,7 +285,8 @@ class _HomeFeedState extends State<HomeFeed> {
 
 class _InstagramPostCard extends StatefulWidget {
   final dynamic post;
-  const _InstagramPostCard({required this.post});
+  final List<dynamic> allPosts;
+  const _InstagramPostCard({required this.post, required this.allPosts});
 
   @override
   State<_InstagramPostCard> createState() => _InstagramPostCardState();
@@ -380,12 +382,20 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        post['name'] ?? post['username'] ?? 'User',
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Color(0xFF2D3748),
+                      GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PublicProfileScreen(uid: post['user']['uid']),
+                          ),
+                        ),
+                        child: Text(
+                          post['category'] ?? 'General',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Color(0xFF2D3748),
+                          ),
                         ),
                       ),
                       Text(
@@ -408,12 +418,34 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(
-                    post['category'] ?? 'General',
-                    style: GoogleFonts.poppins(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
+                  child: GestureDetector(
+                    onTap: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                        ),
+                        builder: (_) => PortfolioProfileModal(
+                          user: post['user'],
+                          category: post['category'],
+                          posts: widget.allPosts
+                              .where((p) =>
+                                  p['category'] == post['category'] &&
+                                  p['user'] != null &&
+                                  p['user']['uid'] == post['user']['uid'])
+                              .cast<Map<String, dynamic>>()
+                              .toList(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      post['category'] ?? 'General',
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ),
@@ -929,17 +961,13 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
                                         ),
                                         child: ElevatedButton(
                                           onPressed: () async {
-                                            final result = await Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => PublicProfileScreen(uid: user['uid']),
-                                              ),
-                                            );
-                                            // Refresh the logged-in user's profile if follow/unfollow happened
-                                            if (result == true) {
-                                              if (profileScreenKey.currentState != null) {
-                                                await profileScreenKey.currentState!.loadProfileAndPosts();
-                                              }
+                                            if (user['uid'] != null) {
+                                              await Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) => PublicProfileScreen(uid: user['uid']),
+                                                ),
+                                              );
                                             }
                                           },
                                           style: ElevatedButton.styleFrom(
@@ -1006,6 +1034,79 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
           ),
         ],
       ),
+    );
+  }
+} 
+
+class PortfolioProfileModal extends StatelessWidget {
+  final Map<String, dynamic> user;
+  final String category;
+  final List<Map<String, dynamic>> posts;
+
+  const PortfolioProfileModal({
+    Key? key,
+    required this.user,
+    required this.category,
+    required this.posts,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Portfolio header
+            CircleAvatar(
+              radius: 40,
+              backgroundColor: Color(0xFF6C63FF),
+              child: Icon(Icons.folder_special_rounded, color: Colors.white, size: 40),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              category,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.black),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildStatColumn("Posts", posts.length.toString()),
+                _buildStatColumn("Followers", "0"),
+                _buildStatColumn("Following", "0"),
+              ],
+            ),
+            const SizedBox(height: 16),
+            posts.isEmpty
+                ? Text('No posts in this portfolio yet', style: TextStyle(fontSize: 16, color: Colors.black54))
+                : SizedBox(
+                    height: 200,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: posts.length,
+                      itemBuilder: (context, index) {
+                        final post = posts[index];
+                        return Card(
+                          child: Image.network(post['url'], width: 120, height: 120, fit: BoxFit.cover),
+                        );
+                      },
+                    ),
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatColumn(String label, String value) {
+    return Column(
+      children: [
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 13, color: Colors.black54)),
+      ],
     );
   }
 } 
