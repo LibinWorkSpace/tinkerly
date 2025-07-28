@@ -10,6 +10,8 @@ import 'package:tinkerly/widgets/category_chip.dart';
 import 'package:tinkerly/services/user_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../services/portfolio_service.dart';
+import '../../models/portfolio_model.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final AppUser user;
@@ -494,7 +496,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       isEdit: true,
     );
 
+    // Auto-create portfolios for new categories
     if (success && mounted) {
+      try {
+        final userId = widget.user.uid;
+        final existingPortfolios = await PortfolioService.fetchUserPortfolios(userId);
+        final existingCategories = existingPortfolios.map((p) => p.category).toSet();
+        final newCategories = _selectedCategories.where((cat) => !existingCategories.contains(cat));
+        
+        for (final cat in newCategories) {
+          try {
+            await PortfolioService.createPortfolio({
+              'userId': userId,
+              'profilename': cat,
+              'category': cat,
+              'description': '',
+              'profileImageUrl': null,
+              // Don't send followers and posts arrays, let the backend handle defaults
+            });
+          } catch (e) {
+            print('Failed to create portfolio for category $cat: $e');
+            // Continue with other categories even if one fails
+          }
+        }
+      } catch (e) {
+        print('Failed to fetch existing portfolios: $e');
+        // Show a warning but don't prevent navigation
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Profile updated, but portfolio sync failed. Please try again later.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
       Navigator.pop(context, true);
     } else if (!success) {
       // Optionally show error

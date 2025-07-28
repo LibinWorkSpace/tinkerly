@@ -12,6 +12,9 @@ import 'package:universal_html/html.dart' as html;
 import 'dart:async'; // Added for Completer
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../services/portfolio_service.dart';
+import '../../models/portfolio_model.dart';
+import 'package:tinkerly/constants/api_constants.dart';
 
 class Url {
   static String createObjectUrlFromBlob(html.Blob blob) => html.Url.createObjectUrlFromBlob(blob);
@@ -35,11 +38,63 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   bool _isLoading = false;
   List<String> _registeredCategories = [];
   VideoPlayerController? _videoController;
+  List<Portfolio> _userPortfolios = [];
+  Portfolio? _selectedPortfolio;
 
   @override
   void initState() {
     super.initState();
     _fetchRegisteredCategories();
+    _fetchUserPortfolios();
+    _ensurePortfoliosExist();
+  }
+
+  Future<void> _refreshData() async {
+    await _fetchRegisteredCategories();
+    await _fetchUserPortfolios();
+    await _ensurePortfoliosExist();
+  }
+
+  // Method to ensure portfolios exist for all user categories
+  Future<void> _ensurePortfoliosExist() async {
+    try {
+      final profile = await UserService.fetchUserProfile();
+      final userId = profile?["uid"];
+      final userCategories = List<String>.from(profile?["categories"] ?? []);
+      
+      if (userId != null && userCategories.isNotEmpty) {
+        final existingPortfolios = await PortfolioService.fetchUserPortfolios(userId);
+        final existingCategories = existingPortfolios.map((p) => p.category).toSet();
+        final missingCategories = userCategories.where((cat) => !existingCategories.contains(cat));
+        
+        print('User categories: $userCategories');
+        print('Existing portfolio categories: $existingCategories');
+        print('Missing categories: $missingCategories');
+        
+        for (final cat in missingCategories) {
+          try {
+            await PortfolioService.createPortfolio({
+              'userId': userId,
+              'profilename': cat,
+              'category': cat,
+              'description': '',
+              'profileImageUrl': null,
+            });
+            print('Created portfolio for category: $cat');
+          } catch (e) {
+            print('Failed to create portfolio for category $cat: $e');
+          }
+        }
+        
+        // Refresh portfolios after creating missing ones
+        if (missingCategories.isNotEmpty) {
+          await Future.delayed(Duration(milliseconds: 300));
+          await _fetchUserPortfolios();
+        }
+      }
+    } catch (e) {
+      print('Error ensuring portfolios exist: $e');
+    }
   }
 
   @override
@@ -57,6 +112,26 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     setState(() {
       _registeredCategories = List<String>.from(profile?["categories"] ?? []);
     });
+  }
+
+  Future<void> _fetchUserPortfolios() async {
+    try {
+      final profile = await UserService.fetchUserProfile();
+      final userId = profile?["uid"]; // Use uid directly since that's what the backend returns
+      print('Fetching portfolios for userId: $userId'); // Debug log
+      
+      if (userId != null) {
+        final portfolios = await PortfolioService.fetchUserPortfolios(userId);
+        print('Fetched ${portfolios.length} portfolios'); // Debug log
+        setState(() {
+          _userPortfolios = portfolios;
+        });
+      } else {
+        print('No userId found in profile'); // Debug log
+      }
+    } catch (e) {
+      print('Error fetching user portfolios: $e'); // Debug log
+    }
   }
 
   Future<void> _pickMedia() async {
@@ -266,7 +341,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   Future<void> _submitPost() async {
-    if ((kIsWeb && _mediaType == 'image' && _webImageBytes == null) || (!kIsWeb && _mediaType == 'image' && _mediaFile == null) || _selectedCategory == null || _descController.text.isEmpty) return;
+    if (((kIsWeb && _mediaType == 'image' && _webImageBytes == null) || (!kIsWeb && _mediaType == 'image' && _mediaFile == null)) || _selectedPortfolio == null || _descController.text.isEmpty) return;
     setState(() { _isLoading = true; });
     try {
       String? url;
@@ -301,11 +376,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       await UserService.createPost(
         url: url,
         description: _descController.text,
-        category: _selectedCategory!,
+        category: _selectedPortfolio!.category,
         mediaType: _mediaType!,
         idToken: idToken,
         userId: userId,
         subCategory: subCategory,
+        portfolioId: _selectedPortfolio!.id,
       );
       if (mounted) {
         Navigator.pop(context, true);
@@ -670,7 +746,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             
                             const SizedBox(height: 24),
                             
-                            // Step 2: Category Selection
+                            // Step 2: Portfolio Selection
                             Container(
                               padding: EdgeInsets.all(20),
                               decoration: BoxDecoration(
@@ -688,7 +764,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _buildStepHeader('2. Choose Category', done: _selectedCategory != null),
+                                  _buildStepHeader('2. Choose Portfolio', done: _selectedPortfolio != null),
                                   const SizedBox(height: 16),
                                   Container(
                                     decoration: BoxDecoration(
@@ -701,10 +777,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                     ),
                                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                     child: DropdownButtonHideUnderline(
-                                      child: DropdownButton<String>(
-                                        value: _selectedCategory,
+                                      child: DropdownButton<Portfolio>(
+                                        value: _selectedPortfolio,
                                         hint: Text(
-                                          'Select category',
+                                          'Select portfolio',
                                           style: GoogleFonts.poppins(
                                             color: Colors.black.withOpacity(0.7),
                                           ),
@@ -713,18 +789,29 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                         dropdownColor: Color(0xFF764BA2),
                                         style: GoogleFonts.poppins(color: Colors.black),
                                         icon: Icon(Icons.keyboard_arrow_down, color: Colors.black),
-                                        items: _registeredCategories
-                                            .map((cat) => DropdownMenuItem(
-                                                  value: cat,
+                                        items: _userPortfolios.isEmpty
+                                            ? [
+                                                DropdownMenuItem(
+                                                  value: null,
                                                   child: Text(
-                                                    cat,
-                                                    style: GoogleFonts.poppins(color: Colors.black),
+                                                    'No portfolios available',
+                                                    style: GoogleFonts.poppins(color: Colors.grey),
                                                   ),
-                                                ))
-                                            .toList(),
+                                                )
+                                              ]
+                                            : _userPortfolios
+                                                .map((portfolio) => DropdownMenuItem(
+                                                      value: portfolio,
+                                                      child: Text(
+                                                        portfolio.profilename,
+                                                        style: GoogleFonts.poppins(color: Colors.black),
+                                                      ),
+                                                    ))
+                                                .toList(),
                                         onChanged: (val) {
                                           setState(() {
-                                            _selectedCategory = val;
+                                            _selectedPortfolio = val;
+                                            _selectedCategory = val?.category;
                                             _selectedSubCategory = null;
                                             _customSubCategoryController.clear();
                                           });
@@ -732,137 +819,62 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                       ),
                                     ),
                                   ),
-                                  if (_selectedCategory != null && subCategorySuggestions[_selectedCategory!] != null) ...[
+                                  if (_userPortfolios.isEmpty) ...[
                                     const SizedBox(height: 16),
-                                    Text(
-                                      'Subcategories',
-                                      style: GoogleFonts.poppins(
-                                        color: Colors.black,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: [
-                                        ...subCategorySuggestions[_selectedCategory!]!.map((sub) => 
-                                          GestureDetector(
-                                            onTap: () {
-                                              setState(() {
-                                                _selectedSubCategory = _selectedSubCategory == sub ? null : sub;
-                                                _customSubCategoryController.clear();
-                                              });
-                                            },
-                                            child: Container(
-                                              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                              decoration: BoxDecoration(
-                                                gradient: _selectedSubCategory == sub
-                                                    ? LinearGradient(
-                                                        colors: [primaryColor, secondaryColor],
-                                                        begin: Alignment.centerLeft,
-                                                        end: Alignment.centerRight,
-                                                      )
-                                                    : null,
-                                                color: _selectedSubCategory == sub 
-                                                    ? null 
-                                                    : Colors.white.withOpacity(0.1),
-                                                borderRadius: BorderRadius.circular(12),
-                                                border: Border.all(
-                                                  color: _selectedSubCategory == sub 
-                                                      ? Colors.transparent 
-                                                      : Colors.white.withOpacity(0.3),
-                                                  width: 1,
-                                                ),
-                                              ),
-                                              child: Text(
-                                                sub,
-                                                style: GoogleFonts.poppins(
-                                                  color: Colors.black,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        GestureDetector(
-                                          onTap: () {
-                                            setState(() {
-                                              _selectedSubCategory = _selectedSubCategory == 'custom' ? null : 'custom';
-                                              if (_selectedSubCategory != 'custom') _customSubCategoryController.clear();
-                                            });
-                                          },
-                                          child: Container(
-                                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                            decoration: BoxDecoration(
-                                              gradient: _selectedSubCategory == 'custom'
-                                                  ? LinearGradient(
-                                                      colors: [primaryColor, secondaryColor],
-                                                      begin: Alignment.centerLeft,
-                                                      end: Alignment.centerRight,
-                                                    )
-                                                  : null,
-                                              color: _selectedSubCategory == 'custom' 
-                                                  ? null 
-                                                  : Colors.white.withOpacity(0.1),
-                                              borderRadius: BorderRadius.circular(12),
-                                              border: Border.all(
-                                                color: _selectedSubCategory == 'custom' 
-                                                    ? Colors.transparent 
-                                                    : Colors.white.withOpacity(0.3),
-                                                width: 1,
-                                              ),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(Icons.add, size: 14, color: Colors.black),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  'Custom',
-                                                  style: GoogleFonts.poppins(
-                                                    color: Colors.black,
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                  if (_selectedSubCategory == 'custom') ...[
-                                    const SizedBox(height: 12),
                                     Container(
+                                      padding: EdgeInsets.all(16),
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.1),
+                                        color: Colors.orange.withOpacity(0.1),
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(
-                                          color: Colors.white.withOpacity(0.2),
+                                          color: Colors.orange.withOpacity(0.3),
                                           width: 1,
                                         ),
                                       ),
-                                      child: TextField(
-                                        controller: _customSubCategoryController,
-                                        style: GoogleFonts.poppins(color: Colors.black),
-                                        decoration: InputDecoration(
-                                          hintText: 'Enter custom subcategory',
-                                          hintStyle: GoogleFonts.poppins(
-                                            color: Colors.black.withOpacity(0.7),
+                                      child: Column(
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  'No portfolios found',
+                                                  style: GoogleFonts.poppins(
+                                                    color: Colors.orange[800],
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                          border: InputBorder.none,
-                                          contentPadding: EdgeInsets.all(16),
-                                        ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'Add categories to your profile first to create portfolios, then refresh this page.',
+                                            style: GoogleFonts.poppins(
+                                              color: Colors.orange[700],
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          ElevatedButton.icon(
+                                            onPressed: _refreshData,
+                                            icon: Icon(Icons.refresh, size: 16),
+                                            label: Text('Refresh'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.orange,
+                                              foregroundColor: Colors.white,
+                                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                              textStyle: GoogleFonts.poppins(fontSize: 12),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ],
                               ),
-                            ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
+                            ).animate().fadeIn(duration: 400.ms, delay: 150.ms),
                             
                             const SizedBox(height: 24),
                             
@@ -934,18 +946,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                               width: double.infinity,
                               height: 56,
                               decoration: BoxDecoration(
-                                gradient: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedCategory != null && _descController.text.isNotEmpty
+                                gradient: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _descController.text.isNotEmpty
                                     ? LinearGradient(
                                         colors: [primaryColor, secondaryColor],
                                         begin: Alignment.centerLeft,
                                         end: Alignment.centerRight,
                                       )
                                     : null,
-                                color: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedCategory != null && _descController.text.isNotEmpty
+                                color: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _descController.text.isNotEmpty
                                     ? null
                                     : Colors.white.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(16),
-                                boxShadow: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedCategory != null && _descController.text.isNotEmpty
+                                boxShadow: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _descController.text.isNotEmpty
                                     ? [
                                         BoxShadow(
                                           color: primaryColor.withOpacity(0.4),
@@ -957,7 +969,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                     : null,
                               ),
                               child: ElevatedButton(
-                                onPressed: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedCategory != null && _descController.text.isNotEmpty && !_isLoading
+                                onPressed: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _descController.text.isNotEmpty && !_isLoading
                                     ? _submitPost
                                     : null,
                                 style: ElevatedButton.styleFrom(
@@ -986,7 +998,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             
                             const SizedBox(height: 16),
                             
-                            if (((kIsWeb && _webImageBytes == null && _webVideoUrl == null) || (!kIsWeb && _mediaFile == null)) || _selectedCategory == null || _descController.text.isEmpty)
+                            if (((kIsWeb && _webImageBytes == null && _webVideoUrl == null) || (!kIsWeb && _mediaFile == null)) || _selectedPortfolio == null || _descController.text.isEmpty)
                               Container(
                                 padding: EdgeInsets.all(16),
                                 decoration: BoxDecoration(

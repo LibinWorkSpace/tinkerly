@@ -8,6 +8,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../models/user_model.dart';
+import '../../services/portfolio_service.dart';
+import 'portfolio_profile_screen.dart';
+import 'package:http/http.dart' as http;
+import 'package:tinkerly/constants/api_constants.dart';
+import 'dart:convert';
 
 class HomeScreen extends StatefulWidget {
   static final GlobalKey<_HomeScreenState> homeScreenKey = GlobalKey<_HomeScreenState>();
@@ -91,7 +96,22 @@ class _HomeFeedState extends State<HomeFeed> {
   @override
   void initState() {
     super.initState();
-    _postsFuture = UserService.fetchAllPosts();
+    // Use the new /feed endpoint that includes portfolio info
+    _postsFuture = _fetchFeedWithPortfolio();
+  }
+
+  Future<List<dynamic>> _fetchFeedWithPortfolio() async {
+    final user = await UserService.fetchUserProfile();
+    final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+    final response = await http.get(
+      Uri.parse('${ApiConstants.baseUrl}/feed'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch feed');
+    }
   }
 
   @override
@@ -332,6 +352,7 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
   @override
   Widget build(BuildContext context) {
     final post = widget.post;
+    final portfolio = post['portfolio'];
     final mediaType = (post['mediaType'] ?? '').toString().toLowerCase();
     final isImage = mediaType == 'image';
     final isVideo = mediaType == 'video';
@@ -368,11 +389,11 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
                   ),
                   child: CircleAvatar(
                     backgroundColor: Color(0xFFF7FAFC),
-                    backgroundImage: (post['profileImageUrl'] ?? '').isNotEmpty
-                        ? NetworkImage(post['profileImageUrl']!)
+                    backgroundImage: (portfolio != null && (portfolio['profileImageUrl'] ?? '').isNotEmpty)
+                        ? NetworkImage(portfolio['profileImageUrl'])
                         : null,
-                    child: (post['profileImageUrl'] == null || (post['profileImageUrl'] ?? '').isEmpty)
-                        ? Icon(Icons.person, color: Color(0xFF6C63FF), size: 20)
+                    child: (portfolio == null || portfolio['profileImageUrl'] == null || (portfolio['profileImageUrl'] ?? '').isEmpty)
+                        ? Icon(Icons.folder_special_rounded, color: Color(0xFF6C63FF), size: 20)
                         : null,
                     radius: 22,
                   ),
@@ -383,14 +404,18 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       GestureDetector(
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PublicProfileScreen(uid: post['user']['uid']),
-                          ),
-                        ),
+                        onTap: () {
+                          if (portfolio != null && portfolio['_id'] != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PortfolioProfileScreen(portfolioId: portfolio['_id']),
+                              ),
+                            );
+                          }
+                        },
                         child: Text(
-                          post['category'] ?? 'General',
+                          portfolio != null ? portfolio['profilename'] ?? 'Portfolio' : 'Portfolio',
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -418,34 +443,12 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: GestureDetector(
-                    onTap: () {
-                      showModalBottomSheet(
-                        context: context,
-                        isScrollControlled: true,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                        ),
-                        builder: (_) => PortfolioProfileModal(
-                          user: post['user'],
-                          category: post['category'],
-                          posts: widget.allPosts
-                              .where((p) =>
-                                  p['category'] == post['category'] &&
-                                  p['user'] != null &&
-                                  p['user']['uid'] == post['user']['uid'])
-                              .cast<Map<String, dynamic>>()
-                              .toList(),
-                        ),
-                      );
-                    },
-                    child: Text(
-                      post['category'] ?? 'General',
-                      style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
+                  child: Text(
+                    portfolio != null ? portfolio['category'] ?? 'General' : 'General',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),

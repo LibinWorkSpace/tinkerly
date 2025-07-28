@@ -16,6 +16,9 @@ import '../auth/phone_status_screen.dart'; // Added import for PhoneStatusScreen
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../constants/categories.dart';
+import '../../services/portfolio_service.dart';
+import 'portfolio_profile_screen.dart';
+import 'edit_portfolio_screen.dart';
 
 final GlobalKey<_ProfileScreenState> profileScreenKey = GlobalKey<_ProfileScreenState>();
 
@@ -23,16 +26,26 @@ class ProfileScreen extends StatefulWidget {
   ProfileScreen({Key? key}) : super(key: profileScreenKey);
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
+  
+  // Static method to refresh portfolios from outside
+  static Future<void> refreshPortfoliosFromOutside() async {
+    final state = profileScreenKey.currentState;
+    if (state != null) {
+      await state.refreshPortfolios();
+      await state.ensurePortfoliosExist();
+    }
+  }
 }
 
 class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
   Map<String, dynamic>? userProfile;
   List<dynamic> allPosts = [];
+  List<dynamic> portfolios = [];
   TabController? _tabController;
   List<String> categories = [];
   bool _hasError = false;
   bool _isLoading = true;
-  String? _selectedPortfolioCategory;
+  String? _selectedPortfolioId;
 
   @override
   void initState() {
@@ -45,11 +58,80 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     _tabController?.dispose();
     super.dispose();
   }
+  
+  // Method to refresh portfolios specifically
+  Future<void> refreshPortfolios() async {
+    if (userProfile != null) {
+      try {
+        final userId = userProfile!["uid"];
+        if (userId != null) {
+          final fetchedPortfolios = await PortfolioService.fetchUserPortfolios(userId);
+          print('Refreshed portfolios count: ${fetchedPortfolios.length}');
+          if (mounted) {
+            setState(() {
+              portfolios = fetchedPortfolios;
+            });
+          }
+        }
+      } catch (e) {
+        print('Error refreshing portfolios: $e');
+      }
+    }
+  }
+  
+  // Method to ensure portfolios exist for all user categories
+  Future<void> ensurePortfoliosExist() async {
+    if (userProfile != null) {
+      try {
+        final userId = userProfile!["uid"];
+        final userCategories = List<String>.from(userProfile!["categories"] ?? []);
+        
+        if (userId != null && userCategories.isNotEmpty) {
+          final existingPortfolios = await PortfolioService.fetchUserPortfolios(userId);
+          final existingCategories = existingPortfolios.map((p) => p.category).toSet();
+          final missingCategories = userCategories.where((cat) => !existingCategories.contains(cat));
+          
+          print('User categories: $userCategories');
+          print('Existing portfolio categories: $existingCategories');
+          print('Missing categories: $missingCategories');
+          
+          for (final cat in missingCategories) {
+            try {
+              await PortfolioService.createPortfolio({
+                'userId': userId,
+                'profilename': cat,
+                'category': cat,
+                'description': '',
+                'profileImageUrl': null,
+              });
+              print('Created portfolio for category: $cat');
+            } catch (e) {
+              print('Failed to create portfolio for category $cat: $e');
+            }
+          }
+          
+          // Refresh portfolios after creating missing ones
+          if (missingCategories.isNotEmpty) {
+            await Future.delayed(Duration(milliseconds: 300));
+            await refreshPortfolios();
+          }
+        }
+      } catch (e) {
+        print('Error ensuring portfolios exist: $e');
+      }
+    }
+  }
 
   Future<void> loadProfileAndPosts() async {
     try {
       final profile = await UserService.fetchUserProfile();
       final posts = await UserService.fetchPosts();
+      final userId = profile?["uid"]; // Use uid directly since that's what the backend returns
+      print('Profile userId: $userId'); // Debug log
+      
+      final fetchedPortfolios = userId != null ? await PortfolioService.fetchUserPortfolios(userId) : [];
+      print('Fetched portfolios count: ${fetchedPortfolios.length}'); // Debug log
+      
       if (!mounted) return;
       final newCategories = _extractCategories(posts);
       if (_tabController == null || _tabController!.length != 2) {
@@ -59,11 +141,17 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       setState(() {
         userProfile = profile;
         allPosts = posts;
+        portfolios = fetchedPortfolios;
         categories = newCategories;
         _hasError = false;
         _isLoading = false;
       });
+      
+      // Ensure portfolios exist for all user categories
+      await ensurePortfoliosExist();
+      
     } catch (e) {
+      print('Error loading profile and posts: $e'); // Debug log
       if (!mounted) return;
       setState(() {
         _hasError = true;
@@ -100,7 +188,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       ),
     );
     if (updated == true) {
+      print('Profile updated, refreshing data...'); // Debug log
       await loadProfileAndPosts();
+      // Wait a bit for portfolios to be created, then refresh
+      await Future.delayed(Duration(milliseconds: 500));
+      await refreshPortfolios();
     }
   }
 
@@ -924,128 +1016,164 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildPortfolioCategoryList() {
-    if (_selectedPortfolioCategory != null) {
-      final category = _selectedPortfolioCategory!;
-      final postsInCategory = allPosts.where((p) => p['category'] == category).toList();
-      return SingleChildScrollView(
+    if (_selectedPortfolioId != null) {
+      // Navigate to portfolio profile
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PortfolioProfileScreen(portfolioId: _selectedPortfolioId!),
+          ),
+        ).then((_) {
+          setState(() {
+            _selectedPortfolioId = null;
+          });
+        });
+      });
+      return SizedBox.shrink();
+    }
+    
+    print('Building portfolio list with ${portfolios.length} portfolios'); // Debug log
+    
+    if (portfolios.isEmpty) {
+      return Center(
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(height: 20),
-            // Back button
-            Align(
-              alignment: Alignment.centerLeft,
-              child: IconButton(
-                icon: Icon(Icons.arrow_back, color: Color(0xFF6C63FF)),
-                onPressed: () {
-                  setState(() {
-                    _selectedPortfolioCategory = null;
-                  });
-                },
+            Icon(Icons.category_outlined, size: 64, color: Colors.grey[400]),
+            SizedBox(height: 16),
+            Text(
+              'No portfolios yet',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600],
               ),
             ),
-            // Portfolio header (same style as profile)
-            Container(
-              margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              padding: EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Colors.white.withAlpha((0.2 * 255).toInt()),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha((0.1 * 255).toInt()),
-                    blurRadius: 20,
-                    spreadRadius: 0,
-                    offset: Offset(0, 10),
-                  ),
-                ],
+            SizedBox(height: 8),
+            Text(
+              'Add categories to your profile to create portfolios',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
               ),
-              child: Column(
-                children: [
-                  // Portfolio Icon
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withAlpha((0.3 * 255).toInt()),
-                        width: 3,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF6C63FF).withAlpha((0.3 * 255).toInt()),
-                          blurRadius: 20,
-                          spreadRadius: 0,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: const CircleAvatar(
-                      radius: 40,
-                      backgroundColor: Color(0xFF6C63FF),
-                      child: Icon(Icons.folder_special_rounded, color: Colors.white, size: 40),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Portfolio Name
-                  Text(
-                    category,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 22,
-                      color: Colors.black,
-                    ),
-                  ),
-                  // Description (not available, so empty)
-                  // Stats Row
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildStatColumn("Posts", postsInCategory.length.toString()),
-                      _buildStatColumn("Followers", "0"),
-                      _buildStatColumn("Following", "0"),
-                    ],
-                  ),
-                ],
-              ),
+              textAlign: TextAlign.center,
             ),
-            // Posts grid/list for this portfolio
-            postsInCategory.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Text('No posts in this portfolio yet', style: TextStyle(fontSize: 16, color: Colors.black54)),
-                  )
-                : GridView.builder(
-                    shrinkWrap: true,
-                    physics: NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 0.8,
-                    ),
-                    itemCount: postsInCategory.length,
-                    itemBuilder: (context, index) {
-                      final post = postsInCategory[index];
-                      return buildPostGridCard(post, Color(0xFF6C63FF), null);
-                    },
-                  ),
           ],
         ),
       );
     }
-    // Default: show portfolio list
-    return PortfolioCategoryList(
-      userProfile: userProfile!,
-      allPosts: allPosts,
-      onPortfolioTap: (user, category, posts) {
-        setState(() {
-          _selectedPortfolioCategory = category;
-        });
+    
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      itemCount: portfolios.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 18),
+      itemBuilder: (context, index) {
+        final portfolio = portfolios[index];
+        print('Portfolio ${index}: ${portfolio.category} (ID: ${portfolio.id})'); // Debug log
+        return InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            setState(() {
+              _selectedPortfolioId = portfolio.id;
+            });
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha((0.85 * 255).toInt()),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Color(0xFFE0E0E0), width: 1.2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha((0.08 * 255).toInt()),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ListTile(
+              leading: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha((0.10 * 255).toInt()),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(8),
+                child: portfolio.profileImageUrl != null && portfolio.profileImageUrl!.isNotEmpty
+                    ? ClipOval(
+                        child: Image.network(
+                          portfolio.profileImageUrl!,
+                          width: 28,
+                          height: 28,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(Icons.folder_special_rounded, color: Color(0xFF4FC3F7), size: 28);
+                          },
+                        ),
+                      )
+                    : Icon(Icons.folder_special_rounded, color: Color(0xFF4FC3F7), size: 28),
+              ),
+              title: Text(
+                portfolio.profilename,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Color(0xFF263238),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    portfolio.category,
+                    style: TextStyle(
+                      color: Color(0xFF6C63FF),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (portfolio.description.isNotEmpty)
+                    Text(
+                      portfolio.description,
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.edit, color: Color(0xFF6C63FF), size: 20),
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => EditPortfolioScreen(portfolio: portfolio),
+                        ),
+                      );
+                      if (result == true) {
+                        // Refresh portfolios after editing
+                        await refreshPortfolios();
+                      }
+                    },
+                  ),
+                  Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFB0BEC5), size: 20),
+                ],
+              ),
+            ),
+          ),
+        );
       },
     );
   }
@@ -1615,6 +1743,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
   bool isLoading = true;
   bool isError = false;
   bool isFollowing = false;
+  String? _selectedPortfolioCategory;
 
   @override
   void initState() {
@@ -1825,16 +1954,173 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
   }
 
   Widget _buildPortfolioCategoryList() {
+    if (_selectedPortfolioCategory != null) {
+      final category = _selectedPortfolioCategory!;
+      final postsInCategory = allPosts.where((p) => p['category'] == category).toList();
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+            // Back button
+            Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                icon: Icon(Icons.arrow_back, color: Color(0xFF6C63FF)),
+                onPressed: () {
+                  setState(() {
+                    _selectedPortfolioCategory = null;
+                  });
+                },
+              ),
+            ),
+            // Portfolio header (same style as profile but without follow/following counts)
+            Container(
+              margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withAlpha((0.2 * 255).toInt()),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha((0.08 * 255).toInt()),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  // Profile picture
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Color(0xFF6C63FF).withAlpha((0.3 * 255).toInt()),
+                        width: 3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color(0xFF6C63FF).withAlpha((0.2 * 255).toInt()),
+                          blurRadius: 15,
+                          offset: Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: CircleAvatar(
+                      backgroundColor: Color(0xFFF7FAFC),
+                      backgroundImage: (userProfile!['profileImageUrl'] ?? '').isNotEmpty
+                          ? NetworkImage(userProfile!['profileImageUrl']!)
+                          : null,
+                      child: (userProfile!['profileImageUrl'] == null || (userProfile!['profileImageUrl'] ?? '').isEmpty)
+                          ? Icon(Icons.person, color: Color(0xFF6C63FF), size: 40)
+                          : null,
+                      radius: 50,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Name
+                  Text(
+                    userProfile!['name'] ?? 'Unknown',
+                    style: GoogleFonts.poppins(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2D3748),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Category
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF6C63FF), Color(0xFFFF6B9D)],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color(0xFF6C63FF).withAlpha((0.3 * 255).toInt()),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      category,
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Posts count for this category
+                  Text(
+                    '${postsInCategory.length} ${postsInCategory.length == 1 ? 'post' : 'posts'}',
+                    style: GoogleFonts.poppins(
+                      color: Color(0xFF718096),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Posts grid/list for this portfolio
+            postsInCategory.isEmpty
+                ? Container(
+                    padding: EdgeInsets.all(32),
+                    child: Text('No posts in this portfolio yet', style: TextStyle(fontSize: 16, color: Colors.black54)),
+                  )
+                : GridView.builder(
+                    shrinkWrap: true,
+                    physics: NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 0.8,
+                    ),
+                    itemCount: postsInCategory.length,
+                    itemBuilder: (context, index) {
+                      final post = postsInCategory[index];
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => UserPostsFeedScreen(
+                                posts: postsInCategory,
+                                initialPostId: post['_id'],
+                              ),
+                            ),
+                          );
+                        },
+                        child: buildPostGridCard(post, Color(0xFF6C63FF), null),
+                      );
+                    },
+                  ),
+          ],
+        ),
+      );
+    }
+    
+    // Default: show portfolio list
     return PortfolioCategoryList(
       userProfile: userProfile!,
       allPosts: allPosts,
       onPortfolioTap: (user, category, posts) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PublicProfileScreen(uid: user.uid), // Assuming user object has a uid
-          ),
-        );
+        setState(() {
+          _selectedPortfolioCategory = category;
+        });
       },
     );
   }

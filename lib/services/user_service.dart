@@ -139,6 +139,7 @@ class UserService {
     required String? idToken,
     required String? userId,
     String? subCategory,
+    String? portfolioId,
   }) async {
     final body = {
       'url': url,
@@ -146,6 +147,7 @@ class UserService {
       'category': category,
       'mediaType': mediaType,
       'userId': userId,
+      if (portfolioId != null) 'portfolioId': portfolioId,
     };
     if (subCategory != null && subCategory.isNotEmpty) {
       body['subCategory'] = subCategory;
