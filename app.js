@@ -8,6 +8,7 @@ const Post = require('./models/Post'); // Add this after other model imports
 const User = require('./models/user.model'); // Add User model
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const Portfolio = require('./models/portfolio');
 
 // In-memory OTP store: { email: { otp, expires } }
 const otpStore = {};
@@ -174,6 +175,12 @@ app.use(async (req, res, next) => {
     return res.status(401).json({ error: 'No token provided' });
   }
 });
+
+// Register new portfolio and product routes
+const portfolioRoutes = require('./routes/portfolio.routes');
+const productRoutes = require('./routes/product.routes');
+app.use('/portfolios', portfolioRoutes);
+app.use('/products', productRoutes);
 
 // Upload endpoint
 app.post('/upload', parser.single('file'), async (req, res) => {
@@ -370,11 +377,14 @@ app.post('/user/:uid/unfollow', async (req, res) => {
 // Create a new post
 app.post('/post', async (req, res) => {
   try {
-    const { url, description, category, mediaType, subCategory } = req.body;
+    const { url, description, category, mediaType, subCategory, portfolioId } = req.body;
     const userId = req.user.uid;
     if (!url || !description || !category || !mediaType || !userId) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
+    
+    console.log('Creating post with portfolioId:', portfolioId); // Debug log
+    
     const newPost = new Post({
       url,
       description,
@@ -382,8 +392,12 @@ app.post('/post', async (req, res) => {
       mediaType,
       userId,
       subCategory,
+      portfolioId: portfolioId || null, // Add portfolioId to the post
     });
     await newPost.save();
+    
+    console.log('Post created successfully with ID:', newPost._id); // Debug log
+    
     res.status(200).json({ message: 'Post created successfully', post: newPost });
   } catch (err) {
     console.error(err);
@@ -502,6 +516,47 @@ app.get('/posts/all', async (req, res) => {
   }
 });
 
+// Get feed with portfolio information
+app.get('/feed', async (req, res) => {
+  try {
+    const posts = await Post.find({}).sort({ createdAt: -1 }).lean();
+    
+    // Fetch all users and portfolios in one go for efficiency
+    const users = await User.find({});
+    const portfolios = await Portfolio.find({});
+    
+    const userMap = {};
+    const portfolioMap = {};
+    
+    users.forEach(user => {
+      userMap[user.uid] = user;
+    });
+    
+    portfolios.forEach(portfolio => {
+      portfolioMap[portfolio._id.toString()] = portfolio;
+    });
+    
+    // Attach user and portfolio info to each post
+    const postsWithInfo = posts.map(post => ({
+      ...post,
+      name: userMap[post.userId]?.name || '',
+      username: userMap[post.userId]?.username || '',
+      profileImageUrl: userMap[post.userId]?.profileImageUrl || '',
+      likedBy: post.likedBy || [],
+      portfolio: post.portfolioId ? portfolioMap[post.portfolioId.toString()] : null,
+    }));
+    
+    console.log(`Fetched ${postsWithInfo.length} posts with portfolio info`); // Debug log
+    
+    res.json(postsWithInfo);
+  } catch (err) {
+    console.error('Error fetching feed:', err);
+    res.status(500).json({ error: 'Failed to fetch feed' });
+  }
+});
+
+
+
 // Like a post
 app.post('/post/:id/like', async (req, res) => {
   try {
@@ -542,6 +597,28 @@ app.post('/post/:id/unlike', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to unlike post' });
+  }
+});
+
+// Get all posts for a user (across all portfolios)
+app.get('/user/:userId/posts', async (req, res) => {
+  try {
+    const portfolios = await Portfolio.find({ userId: req.params.userId });
+    const portfolioIds = portfolios.map(p => p._id);
+    const posts = await Post.find({ portfolioId: { $in: portfolioIds } }).sort({ createdAt: -1 });
+    res.json(posts);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch user posts' });
+  }
+});
+
+// Get all portfolios for a user
+app.get('/user/:userId/portfolios', async (req, res) => {
+  try {
+    const portfolios = await Portfolio.find({ userId: req.params.userId });
+    res.json(portfolios);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch user portfolios' });
   }
 });
 
