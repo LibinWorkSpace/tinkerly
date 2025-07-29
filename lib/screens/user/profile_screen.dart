@@ -11,7 +11,7 @@ import '../../widgets/main_bottom_nav_bar.dart';
 import 'home_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../auth/set_password_screen.dart'; // Added import for SetPasswordScreen
-import '../auth/phone_verification_screen.dart'; // Ensure import for phone verification
+
 import '../auth/phone_status_screen.dart'; // Added import for PhoneStatusScreen
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -1739,6 +1739,7 @@ class PublicProfileScreen extends StatefulWidget {
 class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTickerProviderStateMixin {
   Map<String, dynamic>? userProfile;
   List<dynamic> allPosts = [];
+  List<dynamic> portfolios = [];
   TabController? _tabController;
   bool isLoading = true;
   bool isError = false;
@@ -1755,6 +1756,8 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
     try {
       final profile = await UserService.fetchPublicProfile(widget.uid);
       final posts = await UserService.fetchPostsForUser(widget.uid);
+      final fetchedPortfolios = await PortfolioService.fetchUserPortfolios(widget.uid);
+      
       // Check if the current user is following this user
       final currentUser = await UserService.fetchUserProfile();
       final followingList = currentUser != null && currentUser['following'] != null
@@ -1769,6 +1772,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
       setState(() {
         userProfile = profile;
         allPosts = posts;
+        portfolios = fetchedPortfolios;
         isFollowing = isUserFollowing;
         isError = false;
         isLoading = false;
@@ -2113,11 +2117,21 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
       );
     }
     
-    // Default: show portfolio list
-    return PortfolioCategoryList(
+    // Default: show portfolio list using actual portfolios with navigation to portfolio details
+    return PublicPortfolioCategoryList(
       userProfile: userProfile!,
       allPosts: allPosts,
-      onPortfolioTap: (user, category, posts) {
+      portfolios: portfolios,
+      onPortfolioTap: (portfolioId) {
+        // Navigate to portfolio details screen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PortfolioProfileScreen(portfolioId: portfolioId),
+          ),
+        );
+      },
+      onCategoryTap: (category) {
         setState(() {
           _selectedPortfolioCategory = category;
         });
@@ -2184,6 +2198,110 @@ class PortfolioCategoryList extends StatelessWidget {
                   fontSize: 18,
                   color: Color(0xFF263238),
                   letterSpacing: 0.5,
+                ),
+              ),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFB0BEC5), size: 20),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// New widget for public profile that shows actual portfolios and enables navigation to portfolio details
+class PublicPortfolioCategoryList extends StatelessWidget {
+  final Map<String, dynamic> userProfile;
+  final List<dynamic> allPosts;
+  final List<dynamic> portfolios;
+  final void Function(String portfolioId) onPortfolioTap;
+  final void Function(String category) onCategoryTap;
+  
+  const PublicPortfolioCategoryList({
+    required this.userProfile,
+    required this.allPosts,
+    required this.portfolios,
+    required this.onPortfolioTap,
+    required this.onCategoryTap,
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    if (portfolios.isEmpty) {
+      return Center(child: Text('No portfolios yet'));
+    }
+    
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      itemCount: portfolios.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 18),
+      itemBuilder: (context, index) {
+        final portfolio = portfolios[index];
+        final portfolioName = portfolio is Map ? (portfolio['profilename'] ?? portfolio['category'] ?? 'Portfolio') : portfolio.profilename;
+        final category = portfolio is Map ? (portfolio['category'] ?? '') : portfolio.category;
+        final portfolioId = portfolio is Map ? (portfolio['_id'] ?? portfolio['id'] ?? '') : portfolio.id;
+        final profileImageUrl = portfolio is Map ? portfolio['profileImageUrl'] : portfolio.profileImageUrl;
+        final postsInCategory = allPosts.where((p) => p['category'] == category).toList();
+        
+        return InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => onPortfolioTap(portfolioId ?? ''),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha((0.85 * 255).toInt()),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Color(0xFFE0E0E0), width: 1.2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha((0.08 * 255).toInt()),
+                  blurRadius: 18,
+                  offset: Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ListTile(
+              leading: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha((0.10 * 255).toInt()),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(8),
+                child: profileImageUrl != null && profileImageUrl.isNotEmpty
+                    ? ClipOval(
+                        child: Image.network(
+                          profileImageUrl,
+                          width: 28,
+                          height: 28,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(Icons.folder_special_rounded, color: Color(0xFF4FC3F7), size: 28);
+                          },
+                        ),
+                      )
+                    : Icon(Icons.folder_special_rounded, color: Color(0xFF4FC3F7), size: 28),
+              ),
+              title: Text(
+                portfolioName ?? 'Portfolio',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: Color(0xFF263238),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              subtitle: Text(
+                '${postsInCategory.length} ${postsInCategory.length == 1 ? 'post' : 'posts'}',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF718096),
                 ),
               ),
               trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFB0BEC5), size: 20),

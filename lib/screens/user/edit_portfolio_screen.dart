@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../models/portfolio_model.dart';
 import '../../services/portfolio_service.dart';
 import '../../services/user_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class EditPortfolioScreen extends StatefulWidget {
   final Portfolio portfolio;
@@ -29,6 +30,23 @@ class _EditPortfolioScreenState extends State<EditPortfolioScreen> {
   @override
   void initState() {
     super.initState();
+    
+    // Security check: Only allow the portfolio owner to edit
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null || currentUser.uid != widget.portfolio.userId) {
+      // If not the owner, show error and go back
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('You can only edit your own portfolios'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        Navigator.pop(context);
+      });
+      return;
+    }
+    
     _nameController = TextEditingController(text: widget.portfolio.profilename);
     _descriptionController = TextEditingController(text: widget.portfolio.description);
     _profileImageUrl = widget.portfolio.profileImageUrl;

@@ -6,6 +6,7 @@ import '../../services/product_service.dart';
 import '../../widgets/main_bottom_nav_bar.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'edit_portfolio_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class PortfolioProfileScreen extends StatefulWidget {
   final String portfolioId;
@@ -23,6 +24,8 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
   TabController? _tabController;
   bool _isLoading = true;
   bool _hasError = false;
+  bool _isFollowing = false;
+  bool _isFollowLoading = false;
 
   @override
   void initState() {
@@ -42,15 +45,66 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
       products = (fullData['products'] as List?)?.map((e) => Product.fromMap(e)).toList() ?? [];
       followers = await PortfolioService.fetchPortfolioFollowers(widget.portfolioId);
       
+      // Check if current user is following this portfolio
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        _isFollowing = followers.any((follower) => follower['_id'] == currentUser.uid || follower['uid'] == currentUser.uid);
+      }
+      
       print('Portfolio loaded: ${portfolio?.profilename}'); // Debug log
       print('Posts count: ${posts.length}'); // Debug log
       print('Products count: ${products.length}'); // Debug log
+      print('Is following: $_isFollowing'); // Debug log
       
       _tabController ??= TabController(length: 2, vsync: this);
       setState(() { _isLoading = false; });
     } catch (e) {
       print('Error loading portfolio data: $e'); // Debug log
       setState(() { _isLoading = false; _hasError = true; });
+    }
+  }
+
+  bool _isCurrentUserOwner() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    return currentUser != null && portfolio != null && portfolio!.userId == currentUser.uid;
+  }
+
+  Future<void> _toggleFollow() async {
+    if (_isFollowLoading) return;
+    
+    setState(() { _isFollowLoading = true; });
+    
+    try {
+      // TODO: Implement portfolio follow/unfollow API calls
+      // For now, just toggle the state locally
+      setState(() {
+        _isFollowing = !_isFollowing;
+        if (_isFollowing) {
+          // Add current user to followers list (simplified)
+          // In real implementation, this should be handled by the backend
+        } else {
+          // Remove current user from followers list (simplified)
+          // In real implementation, this should be handled by the backend
+        }
+      });
+      
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isFollowing ? 'Following portfolio' : 'Unfollowed portfolio'),
+          backgroundColor: _isFollowing ? Colors.green : Colors.orange,
+        ),
+      );
+    } catch (e) {
+      print('Error toggling follow: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to ${_isFollowing ? 'unfollow' : 'follow'} portfolio'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() { _isFollowLoading = false; });
     }
   }
 
@@ -187,41 +241,68 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
                       ],
                     ),
                     const SizedBox(height: 20),
-                    // Edit Portfolio Button
+                    // Edit Portfolio Button (for owner) or Follow Button (for others)
                     Container(
                       width: double.infinity,
                       height: 48,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [Color(0xFF6C63FF), Color(0xFFFF6B9D)],
+                          colors: _isCurrentUserOwner() 
+                              ? [Color(0xFF6C63FF), Color(0xFFFF6B9D)]
+                              : _isFollowing 
+                                  ? [Colors.grey[400]!, Colors.grey[500]!]
+                                  : [Color(0xFF4CAF50), Color(0xFF45A049)],
                           begin: Alignment.centerLeft,
                           end: Alignment.centerRight,
                         ),
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Color(0xFF6C63FF).withOpacity(0.3),
+                            color: (_isCurrentUserOwner() ? Color(0xFF6C63FF) : Color(0xFF4CAF50)).withOpacity(0.3),
                             blurRadius: 12,
                             offset: Offset(0, 4),
                           ),
                         ],
                       ),
                       child: ElevatedButton.icon(
-                        onPressed: () async {
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => EditPortfolioScreen(portfolio: portfolio!),
-                            ),
-                          );
-                          if (result == true) {
-                            // Refresh portfolio data after editing
-                            await loadPortfolioData();
-                          }
-                        },
-                        icon: Icon(Icons.edit, color: Colors.white, size: 20),
+                        onPressed: _isCurrentUserOwner() 
+                            ? () async {
+                                final result = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => EditPortfolioScreen(portfolio: portfolio!),
+                                  ),
+                                );
+                                if (result == true) {
+                                  // Refresh portfolio data after editing
+                                  await loadPortfolioData();
+                                }
+                              }
+                            : _isFollowLoading ? null : _toggleFollow,
+                        icon: _isFollowLoading 
+                            ? SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(
+                                _isCurrentUserOwner() 
+                                    ? Icons.edit 
+                                    : _isFollowing 
+                                        ? Icons.person_remove 
+                                        : Icons.person_add,
+                                color: Colors.white, 
+                                size: 20,
+                              ),
                         label: Text(
-                          'Edit Portfolio',
+                          _isCurrentUserOwner() 
+                              ? 'Edit Portfolio'
+                              : _isFollowing 
+                                  ? 'Unfollow'
+                                  : 'Follow',
                           style: GoogleFonts.poppins(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
