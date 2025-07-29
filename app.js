@@ -133,7 +133,7 @@ app.post('/auth/send-registration-otp', async (req, res) => {
   }
 });
 
-// Verify registration OTP endpoint
+// Verify registration OTP endpoint to verify email during registration
 app.post('/auth/verify-registration-otp', async (req, res) => {
   const { email, otp } = req.body;
   if (!email || !otp) return res.status(400).json({ error: 'Missing fields' });
