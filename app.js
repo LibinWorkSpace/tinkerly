@@ -338,19 +338,44 @@ app.post('/user/:uid/follow', async (req, res) => {
   try {
     const targetUid = req.params.uid;
     const currentUid = req.user.uid;
-    if (targetUid === currentUid) return res.status(400).json({ error: 'Cannot follow yourself' });
+
+    console.log('Follow request - Target UID:', targetUid, 'Current UID:', currentUid);
+
+    if (targetUid === currentUid) {
+      return res.status(400).json({ error: 'Cannot follow yourself' });
+    }
+
     const targetUser = await User.findOne({ uid: targetUid });
     const currentUser = await User.findOne({ uid: currentUid });
-    if (!targetUser || !currentUser) return res.status(404).json({ error: 'User not found' });
-    if (targetUser.followers.includes(currentUid)) return res.status(400).json({ error: 'Already following' });
-    targetUser.followers.push(currentUid);
-    currentUser.following.push(targetUid);
-    await targetUser.save();
+
+    console.log('Target user found:', !!targetUser, 'Current user found:', !!currentUser);
+
+    if (!targetUser || !currentUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Initialize arrays if they don't exist
+    if (!targetUser.followers) targetUser.followers = [];
+    if (!currentUser.following) currentUser.following = [];
+
+    // Check if already following (using ObjectId comparison)
+    const isAlreadyFollowing = currentUser.following.some(id => id.equals(targetUser._id));
+    if (isAlreadyFollowing) {
+      return res.status(400).json({ error: 'Already following this user' });
+    }
+
+    // Add to following/followers lists using ObjectIds
+    currentUser.following.push(targetUser._id);
+    targetUser.followers.push(currentUser._id);
+
     await currentUser.save();
-    res.json({ success: true });
+    await targetUser.save();
+
+    console.log('Follow successful');
+    res.json({ success: true, message: 'User followed successfully' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to follow user' });
+    console.error('Follow error:', err);
+    res.status(500).json({ error: 'Failed to follow user', details: err.message });
   }
 });
 
@@ -359,18 +384,33 @@ app.post('/user/:uid/unfollow', async (req, res) => {
   try {
     const targetUid = req.params.uid;
     const currentUid = req.user.uid;
-    if (targetUid === currentUid) return res.status(400).json({ error: 'Cannot unfollow yourself' });
+
+    if (targetUid === currentUid) {
+      return res.status(400).json({ error: 'Cannot unfollow yourself' });
+    }
+
     const targetUser = await User.findOne({ uid: targetUid });
     const currentUser = await User.findOne({ uid: currentUid });
-    if (!targetUser || !currentUser) return res.status(404).json({ error: 'User not found' });
-    targetUser.followers = targetUser.followers.filter(uid => uid !== currentUid);
-    currentUser.following = currentUser.following.filter(uid => uid !== targetUid);
-    await targetUser.save();
+
+    if (!targetUser || !currentUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Remove from following/followers lists using ObjectId comparison
+    if (currentUser.following) {
+      currentUser.following = currentUser.following.filter(id => !id.equals(targetUser._id));
+    }
+    if (targetUser.followers) {
+      targetUser.followers = targetUser.followers.filter(id => !id.equals(currentUser._id));
+    }
+
     await currentUser.save();
-    res.json({ success: true });
+    await targetUser.save();
+
+    res.json({ success: true, message: 'User unfollowed successfully' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to unfollow user' });
+    console.error('Unfollow error:', err);
+    res.status(500).json({ error: 'Failed to unfollow user', details: err.message });
   }
 });
 
@@ -600,6 +640,99 @@ app.post('/post/:id/unlike', async (req, res) => {
   }
 });
 
+// Get users who liked a post (only for post owner)
+app.get('/post/:id/likes', async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const currentUserId = req.user.uid;
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    // Only allow post owner to see who liked their post
+    if (post.userId !== currentUserId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (!post.likedBy || post.likedBy.length === 0) {
+      return res.json([]);
+    }
+
+    // Fetch user details for each user who liked the post
+    const users = await User.find({ uid: { $in: post.likedBy } }).select('uid name username profileImageUrl');
+    res.json(users);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch liked by users' });
+  }
+});
+
+// Add a comment to a post
+app.post('/post/:id/comment', async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const userId = req.user.uid;
+    const { comment } = req.body;
+
+    if (!comment || comment.trim().length === 0) {
+      return res.status(400).json({ error: 'Comment cannot be empty' });
+    }
+
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    // Get user details
+    const user = await User.findOne({ uid: userId });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Add comment to post
+    const newComment = {
+      userId: user._id,
+      comment: comment.trim(),
+      commentedAt: new Date()
+    };
+
+    if (!post.comments) post.comments = [];
+    post.comments.push(newComment);
+    await post.save();
+
+    res.json({ success: true, comment: newComment });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to add comment' });
+  }
+});
+
+// Get comments for a post
+app.get('/post/:id/comments', async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const post = await Post.findById(postId).populate({
+      path: 'comments.userId',
+      select: 'uid name username profileImageUrl'
+    });
+
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    // Format comments with user data
+    const formattedComments = (post.comments || []).map(comment => ({
+      _id: comment._id,
+      comment: comment.comment,
+      commentedAt: comment.commentedAt,
+      user: {
+        uid: comment.userId?.uid,
+        name: comment.userId?.name,
+        username: comment.userId?.username,
+        profileImageUrl: comment.userId?.profileImageUrl
+      }
+    }));
+
+    res.json(formattedComments);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch comments' });
+  }
+});
+
 // Get all posts for a user (across all portfolios)
 app.get('/user/:userId/posts', async (req, res) => {
   try {
@@ -622,5 +755,33 @@ app.get('/user/:userId/portfolios', async (req, res) => {
   }
 });
 
+// Check if following a user
+app.get('/user/:uid/follow-status', async (req, res) => {
+  try {
+    const targetUid = req.params.uid;
+    const currentUid = req.user.uid;
+
+    const currentUser = await User.findOne({ uid: currentUid });
+    const targetUser = await User.findOne({ uid: targetUid });
+
+    if (!currentUser || !targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if following using ObjectId comparison
+    const isFollowing = currentUser.following &&
+      currentUser.following.some(id => id.equals(targetUser._id));
+
+    res.json({
+      isFollowing,
+      followersCount: targetUser.followers ? targetUser.followers.length : 0,
+      followingCount: targetUser.following ? targetUser.following.length : 0
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to check follow status' });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`)); 
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
