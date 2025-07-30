@@ -7,12 +7,12 @@ import '../../widgets/main_bottom_nav_bar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../models/user_model.dart';
-import '../../services/portfolio_service.dart';
+
 import 'portfolio_profile_screen.dart';
 import 'package:http/http.dart' as http;
 import 'package:tinkerly/constants/api_constants.dart';
 import 'dart:convert';
+
 
 class HomeScreen extends StatefulWidget {
   static final GlobalKey<_HomeScreenState> homeScreenKey = GlobalKey<_HomeScreenState>();
@@ -38,19 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
     ProfileScreen(),
   ];
 
-  void _onItemTapped(int index) {
-    if (index == 2) {
-      // Open create post screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => CreatePostScreen()),
-      );
-      return;
-    }
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
+
 
   void switchTab(int index) {
     setState(() {
@@ -101,7 +89,6 @@ class _HomeFeedState extends State<HomeFeed> {
   }
 
   Future<List<dynamic>> _fetchFeedWithPortfolio() async {
-    final user = await UserService.fetchUserProfile();
     final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
     final response = await http.get(
       Uri.parse('${ApiConstants.baseUrl}/feed'),
@@ -117,11 +104,10 @@ class _HomeFeedState extends State<HomeFeed> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFFAFAFA),
+      backgroundColor: Color(0xFF0A0A0A),
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        shadowColor: Colors.black.withAlpha(25),
+        backgroundColor: Color(0xFF0A0A0A),
+        elevation: 0,
         automaticallyImplyLeading: false,
         title: Row(
           children: [
@@ -134,18 +120,8 @@ class _HomeFeedState extends State<HomeFeed> {
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF6C63FF).withAlpha(76),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
               ),
-              child: Text(
-                "⚡",
-                style: TextStyle(fontSize: 20, color: Colors.white),
-              ),
+              child: Icon(Icons.auto_awesome, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 12),
             Text(
@@ -153,27 +129,36 @@ class _HomeFeedState extends State<HomeFeed> {
               style: GoogleFonts.poppins(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF2D3748), // Dark text
-                letterSpacing: 1,
+                color: Colors.white,
+                letterSpacing: 0.5,
               ),
             ),
           ],
         ),
         actions: [
           Container(
-            margin: EdgeInsets.only(right: 16),
+            margin: EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Color(0xFFF7FAFC), // Light background
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Color(0xFFE2E8F0),
-                width: 1,
-              ),
+              color: Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: IconButton(
-              icon: Icon(Icons.notifications_outlined, color: Color(0xFF6C63FF)),
+              icon: Icon(Icons.notifications_outlined, color: Colors.white, size: 22),
               onPressed: () {
                 // TODO: Implement notifications
+              },
+            ),
+          ),
+          Container(
+            margin: EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(
+              color: Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.search, color: Colors.white, size: 22),
+              onPressed: () {
+                // TODO: Implement search
               },
             ),
           ),
@@ -184,118 +169,72 @@ class _HomeFeedState extends State<HomeFeed> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(
-              child: Container(
-                padding: EdgeInsets.all(24),
-                margin: EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(5),
-                      blurRadius: 10,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Loading amazing posts...',
-                      style: GoogleFonts.poppins(
-                        color: Color(0xFF2D3748),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                strokeWidth: 2,
               ),
             );
           }
           final posts = snapshot.data ?? [];
           if (posts.isEmpty) {
             return Center(
-              child: Container(
-                padding: EdgeInsets.all(32),
-                margin: EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(5),
-                      blurRadius: 15,
-                      offset: Offset(0, 5),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.photo_camera_outlined,
+                    size: 80,
+                    color: Colors.grey[600],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No Posts Yet',
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
                     ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF6C63FF), Color(0xFFFF6B9D)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Color(0xFF6C63FF).withAlpha(76),
-                            blurRadius: 10,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.photo_library_outlined,
-                        color: Colors.white,
-                        size: 32,
-                      ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Start following people to see their posts',
+                    style: GoogleFonts.poppins(
+                      color: Colors.grey[400],
+                      fontSize: 16,
                     ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'No Posts Yet',
-                      style: GoogleFonts.poppins(
-                        color: Color(0xFF2D3748),
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Be the first to share something amazing!',
-                      style: GoogleFonts.poppins(
-                        color: Color(0xFF718096),
-                        fontSize: 14,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
             );
           }
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-            itemCount: posts.length,
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-            cacheExtent: 2000,
-            itemBuilder: (context, index) {
-              final post = posts[index];
-              return _InstagramPostCard(post: post, allPosts: posts).animate().fadeIn(
-                duration: 400.ms,
-                delay: (index * 100).ms,
-              );
+          return RefreshIndicator(
+            onRefresh: () async {
+              setState(() {
+                _postsFuture = _fetchFeedWithPortfolio();
+              });
+              await _postsFuture;
             },
+            color: Colors.white,
+            backgroundColor: Colors.grey[800],
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: posts.length,
+              physics: const AlwaysScrollableScrollPhysics(),
+              itemBuilder: (context, index) {
+                final post = posts[index];
+                return _InstagramPostCard(
+                  post: post,
+                  allPosts: posts,
+                  onCommentCountChanged: () {
+                    // Refresh the specific post data
+                    setState(() {
+                      _postsFuture = _fetchFeedWithPortfolio();
+                    });
+                  },
+                );
+              },
+            ),
           );
         },
       ),
@@ -306,7 +245,14 @@ class _HomeFeedState extends State<HomeFeed> {
 class _InstagramPostCard extends StatefulWidget {
   final dynamic post;
   final List<dynamic> allPosts;
-  const _InstagramPostCard({required this.post, required this.allPosts});
+  final VoidCallback? onCommentCountChanged;
+
+  const _InstagramPostCard({
+    Key? key,
+    required this.post,
+    required this.allPosts,
+    this.onCommentCountChanged,
+  }) : super(key: key);
 
   @override
   State<_InstagramPostCard> createState() => _InstagramPostCardState();
@@ -316,14 +262,80 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
   late int likeCount;
   late bool isLiked;
   late String? currentUid;
+  late int commentCount;
   bool likeLoading = false;
+  bool showComments = false;
+  List<dynamic> comments = [];
+  bool commentsLoading = false;
+  final TextEditingController _commentController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     likeCount = widget.post['likes'] ?? 0;
+    commentCount = (widget.post['comments'] ?? []).length;
     currentUid = FirebaseAuth.instance.currentUser?.uid;
     isLiked = (widget.post['likedBy'] ?? []).contains(currentUid);
+  }
+
+  Future<void> _fetchComments() async {
+    if (commentsLoading) return;
+    setState(() { commentsLoading = true; });
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final idToken = await user?.getIdToken();
+      final response = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}/post/${widget.post['_id']}/comments'),
+        headers: {'Authorization': 'Bearer $idToken'},
+      );
+      if (response.statusCode == 200) {
+        setState(() {
+          comments = jsonDecode(response.body);
+          commentCount = comments.length;
+        });
+      }
+    } catch (e) {
+      print('Error fetching comments: $e');
+    } finally {
+      setState(() { commentsLoading = false; });
+    }
+  }
+
+  void _toggleComments() async {
+    setState(() {
+      showComments = !showComments;
+    });
+    if (showComments && comments.isEmpty) {
+      await _fetchComments();
+    }
+  }
+
+  Future<void> _addComment() async {
+    if (_commentController.text.trim().isEmpty) return;
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final idToken = await user?.getIdToken();
+      final response = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}/post/${widget.post['_id']}/comment'),
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'comment': _commentController.text.trim(),
+        }),
+      );
+      if (response.statusCode == 200) {
+        _commentController.clear();
+        await _fetchComments(); // Refresh comments
+        if (widget.onCommentCountChanged != null) {
+          widget.onCommentCountChanged!();
+        }
+      }
+    } catch (e) {
+      print('Error adding comment: $e');
+    }
   }
 
   void _toggleLike() async {
@@ -349,6 +361,24 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
     setState(() { likeLoading = false; });
   }
 
+  String _formatCommentTime(dynamic commentedAt) {
+    if (commentedAt == null) return '';
+    try {
+      final date = commentedAt is DateTime
+          ? commentedAt
+          : DateTime.tryParse(commentedAt.toString()) ?? DateTime.now();
+      final now = DateTime.now();
+      final diff = now.difference(date);
+      if (diff.inMinutes < 1) return 'now';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+      if (diff.inHours < 24) return '${diff.inHours}h';
+      if (diff.inDays < 7) return '${diff.inDays}d';
+      return '${date.day}/${date.month}';
+    } catch (_) {
+      return '';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final post = widget.post;
@@ -358,18 +388,11 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
     final isVideo = mediaType == 'video';
     
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(5),
-            blurRadius: 10,
-            spreadRadius: 0,
-            offset: Offset(0, 2),
-          ),
-        ],
+        color: Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Color(0xFF2A2A2A), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -382,20 +405,29 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
                 Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Color(0xFF6C63FF).withAlpha(76),
-                      width: 2,
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF6C63FF), Color(0xFFFF6B9D)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0xFF6C63FF).withAlpha(76),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
                   ),
+                  padding: EdgeInsets.all(2),
                   child: CircleAvatar(
-                    backgroundColor: Color(0xFFF7FAFC),
+                    backgroundColor: Color(0xFF1A1A1A),
                     backgroundImage: (portfolio != null && (portfolio['profileImageUrl'] ?? '').isNotEmpty)
                         ? NetworkImage(portfolio['profileImageUrl'])
                         : null,
+                    radius: 20,
                     child: (portfolio == null || portfolio['profileImageUrl'] == null || (portfolio['profileImageUrl'] ?? '').isEmpty)
-                        ? Icon(Icons.folder_special_rounded, color: Color(0xFF6C63FF), size: 20)
+                        ? Icon(Icons.person, color: Colors.white, size: 22)
                         : null,
-                    radius: 22,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -417,122 +449,100 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
                         child: Text(
                           portfolio != null ? portfolio['profilename'] ?? 'Portfolio' : 'Portfolio',
                           style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w600,
                             fontSize: 16,
-                            color: Color(0xFF2D3748),
+                            color: Colors.white,
                           ),
                         ),
                       ),
                       Text(
                         _formatPostTime(post['createdAt']),
                         style: GoogleFonts.poppins(
-                          color: Color(0xFF718096),
+                          color: Colors.grey[500],
                           fontSize: 12,
                         ),
                       ),
                     ],
                   ),
                 ),
+                if (post['userId'] != FirebaseAuth.instance.currentUser?.uid)
+                  _FollowButton(userId: post['userId']),
+                const SizedBox(width: 8),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF6C63FF), Color(0xFFFF6B9D)],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Color(0xFF2A2A2A),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(
-                    portfolio != null ? portfolio['category'] ?? 'General' : 'General',
-                    style: GoogleFonts.poppins(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  child: Icon(Icons.more_vert, color: Colors.white, size: 18),
                 ),
               ],
             ),
           ),
           // Media
           Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
+            margin: EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(50),
-                  blurRadius: 15,
-                  spreadRadius: 0,
-                  offset: Offset(0, 8),
-                ),
-              ],
+              border: Border.all(color: Color(0xFF2A2A2A), width: 1),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: isImage
-                  ? Image.network(
-                      post['url'],
-                      width: double.infinity,
-                      height: 300,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, progress) => progress == null
-                          ? child
-                          : Container(
-                              width: double.infinity,
-                              height: 300,
-                              decoration: BoxDecoration(
-                                color: Color(0xFFF7FAFC),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
+              child: Container(
+                width: double.infinity,
+                height: 350,
+                child: isImage
+                    ? Image.network(
+                        post['url'],
+                        width: double.infinity,
+                        height: 350,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, progress) => progress == null
+                            ? child
+                            : Container(
+                                width: double.infinity,
+                                height: 350,
+                                color: Color(0xFF2A2A2A),
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
+                                    strokeWidth: 2,
+                                  ),
                                 ),
                               ),
-                            ),
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        width: double.infinity,
-                        height: 300,
-                        decoration: BoxDecoration(
-                          color: Color(0xFFF7FAFC),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(Icons.broken_image, size: 60, color: Color(0xFF718096)),
-                      ),
-                    )
-                  : isVideo
-                      ? _FeedVideoPlayerWithFallback(url: post['url'])
-                      : Container(
-                          height: 300,
+                        errorBuilder: (context, error, stackTrace) => Container(
                           width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Color(0xFFF7FAFC),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Icon(Icons.image, size: 60, color: Color(0xFF718096)),
+                          height: 350,
+                          color: Color(0xFF2A2A2A),
+                          child: Icon(Icons.broken_image, size: 60, color: Colors.grey[600]),
                         ),
+                      )
+                    : isVideo
+                        ? _FeedVideoPlayerWithFallback(url: post['url'])
+                        : Container(
+                            height: 350,
+                            width: double.infinity,
+                            color: Color(0xFF2A2A2A),
+                            child: Icon(Icons.image, size: 60, color: Colors.grey[600]),
+                          ),
+              ),
             ),
           ),
-          // Like/Comment Row
+          // Action buttons
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
+                // Like button
                 GestureDetector(
                   onTap: _toggleLike,
                   child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: isLiked 
-                          ? Color(0xFFFF6B9D).withAlpha(25)
-                          : Color(0xFFF7FAFC),
+                      color: isLiked ? Color(0xFFFF6B9D).withAlpha(30) : Color(0xFF2A2A2A),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isLiked 
-                            ? Color(0xFFFF6B9D)
-                            : Color(0xFFE2E8F0),
+                        color: isLiked ? Color(0xFFFF6B9D) : Color(0xFF3A3A3A),
                         width: 1,
                       ),
                     ),
@@ -541,47 +551,73 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
                       children: [
                         Icon(
                           isLiked ? Icons.favorite : Icons.favorite_border,
-                          size: 20,
-                          color: isLiked ? Color(0xFFFF6B9D) : Color(0xFF718096),
+                          color: isLiked ? Color(0xFFFF6B9D) : Colors.white,
+                          size: 18,
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '$likeCount',
-                          style: GoogleFonts.poppins(
-                            color: isLiked ? Color(0xFFFF6B9D) : Color(0xFF2D3748),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                        if (likeCount > 0) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            '$likeCount',
+                            style: GoogleFonts.poppins(
+                              color: isLiked ? Color(0xFFFF6B9D) : Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Color(0xFFF7FAFC),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Color(0xFFE2E8F0),
-                      width: 1,
+                // Comment button
+                GestureDetector(
+                  onTap: _toggleComments,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: showComments ? Color(0xFF6C63FF).withAlpha(30) : Color(0xFF2A2A2A),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: showComments ? Color(0xFF6C63FF) : Color(0xFF3A3A3A),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.mode_comment_outlined,
+                          color: showComments ? Color(0xFF6C63FF) : Colors.white,
+                          size: 18,
+                        ),
+                        if (commentCount > 0) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            '$commentCount',
+                            style: GoogleFonts.poppins(
+                              color: showComments ? Color(0xFF6C63FF) : Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.mode_comment_outlined, size: 20, color: Color(0xFF718096)),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Comment',
-                        style: GoogleFonts.poppins(
-                          color: Color(0xFF2D3748),
-                          fontWeight: FontWeight.w500,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
+                ),
+                Spacer(),
+                // Share button
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Color(0xFF2A2A2A),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.share_outlined,
+                    color: Colors.white,
+                    size: 18,
                   ),
                 ),
               ],
@@ -589,17 +625,216 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
           ),
           // Description
           if (post['description'] != null && post['description'].toString().isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Text(
-                post['description'] ?? '',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: Color(0xFF2D3748),
-                  height: 1.4,
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Color(0xFF2A2A2A),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Color(0xFF3A3A3A), width: 1),
+              ),
+              child: RichText(
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '${portfolio != null ? portfolio['profilename'] ?? 'Portfolio' : 'Portfolio'} ',
+                      style: GoogleFonts.poppins(
+                        color: Color(0xFF6C63FF),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    TextSpan(
+                      text: post['description'] ?? '',
+                      style: GoogleFonts.poppins(
+                        color: Colors.white,
+                        fontSize: 14,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
+          // Time
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Text(
+              _formatPostTime(post['createdAt']),
+              style: GoogleFonts.poppins(
+                color: Colors.grey[500],
+                fontSize: 12,
+              ),
+            ),
+          ),
+
+          // Comments Section
+          if (showComments) ...[
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Color(0xFF2A2A2A),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Color(0xFF3A3A3A), width: 1),
+              ),
+              child: Column(
+                children: [
+                  // Comments List
+                  if (commentsLoading)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        strokeWidth: 2,
+                      ),
+                    )
+                  else if (comments.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'No comments yet',
+                        style: GoogleFonts.poppins(
+                          color: Colors.grey[400],
+                          fontSize: 14,
+                        ),
+                      ),
+                    )
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: NeverScrollableScrollPhysics(),
+                      itemCount: comments.length,
+                      itemBuilder: (context, index) {
+                        final comment = comments[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                radius: 14,
+                                backgroundColor: Colors.grey[700],
+                                backgroundImage: comment['user']?['profileImageUrl'] != null && comment['user']['profileImageUrl'].isNotEmpty
+                                    ? NetworkImage(comment['user']['profileImageUrl'])
+                                    : null,
+                                child: comment['user']?['profileImageUrl'] == null || comment['user']['profileImageUrl'].isEmpty
+                                    ? Text(
+                                        comment['user']?['name']?.isNotEmpty == true
+                                            ? comment['user']['name'][0].toUpperCase()
+                                            : 'U',
+                                        style: TextStyle(fontSize: 10, color: Colors.white),
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    RichText(
+                                      text: TextSpan(
+                                        children: [
+                                          TextSpan(
+                                            text: '${comment['user']?['username'] ?? 'Unknown'} ',
+                                            style: GoogleFonts.poppins(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text: comment['comment'] ?? '',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 13,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _formatCommentTime(comment['commentedAt']),
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        color: Colors.grey[500],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+
+                  // Add Comment Input
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: Color(0xFF3A3A3A), width: 1),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Color(0xFF1A1A1A),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Color(0xFF3A3A3A), width: 1),
+                            ),
+                            child: TextField(
+                              controller: _commentController,
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Add a comment...',
+                                hintStyle: GoogleFonts.poppins(
+                                  color: Colors.grey[500],
+                                  fontSize: 14,
+                                ),
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                              maxLines: null,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        GestureDetector(
+                          onTap: _addComment,
+                          child: Container(
+                            padding: EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFF6C63FF), Color(0xFFFF6B9D)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Icon(
+                              Icons.send,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -624,9 +859,106 @@ String _formatPostTime(dynamic createdAt) {
   }
 }
 
+class _FollowButton extends StatefulWidget {
+  final String userId;
+
+  const _FollowButton({Key? key, required this.userId}) : super(key: key);
+
+  @override
+  State<_FollowButton> createState() => _FollowButtonState();
+}
+
+class _FollowButtonState extends State<_FollowButton> {
+  bool isFollowing = false;
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFollowStatus();
+  }
+
+  Future<void> _checkFollowStatus() async {
+    try {
+      final status = await UserService.getFollowStatus(widget.userId);
+      if (status != null && mounted) {
+        setState(() {
+          isFollowing = status['isFollowing'] ?? false;
+        });
+      }
+    } catch (e) {
+      print('Error checking follow status: $e');
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    if (isLoading) return;
+
+    setState(() { isLoading = true; });
+
+    try {
+      bool success;
+      if (isFollowing) {
+        success = await UserService.unfollowUser(widget.userId);
+      } else {
+        success = await UserService.followUser(widget.userId);
+      }
+
+      if (success && mounted) {
+        setState(() {
+          isFollowing = !isFollowing;
+        });
+      }
+    } catch (e) {
+      print('Error toggling follow: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to ${isFollowing ? 'unfollow' : 'follow'} user')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() { isLoading = false; });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _toggleFollow,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: BoxDecoration(
+          color: isFollowing ? Colors.grey[800] : Colors.blue,
+          borderRadius: BorderRadius.circular(6),
+          border: isFollowing ? Border.all(color: Colors.grey[600]!) : null,
+        ),
+        child: isLoading
+            ? SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : Text(
+                isFollowing ? 'Following' : 'Follow',
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+      ),
+    );
+  }
+}
+
 class _FeedVideoPlayerWithFallback extends StatefulWidget {
   final String url;
-  const _FeedVideoPlayerWithFallback({required this.url});
+  const _FeedVideoPlayerWithFallback({Key? key, required this.url}) : super(key: key);
   @override
   State<_FeedVideoPlayerWithFallback> createState() => _FeedVideoPlayerWithFallbackState();
 }
@@ -639,7 +971,7 @@ class _FeedVideoPlayerWithFallbackState extends State<_FeedVideoPlayerWithFallba
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.network(widget.url)
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
       ..initialize().then((_) {
         setState(() {
           _initialized = true;

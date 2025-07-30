@@ -6,7 +6,7 @@ import '../auth/phone_verification_screen.dart';
 import 'edit_profile_screen.dart';
 import '../../models/user_model.dart';
 import 'package:video_player/video_player.dart';
-import 'user_posts_feed_screen.dart';
+import 'post_details_screen.dart';
 import '../../widgets/main_bottom_nav_bar.dart';
 import 'home_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -746,7 +746,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                                 indicatorSize: TabBarIndicatorSize.tab,
                                 indicatorPadding: EdgeInsets.all(8),
                                 labelColor: Color(0xFF6C63FF),
-                                unselectedLabelColor: Color(0xFF6C63FF).withOpacity(0.6),
+                                unselectedLabelColor: Color(0xFF6C63FF).withAlpha(153),
                                 tabs: [
                                   Tab(
                                     child: Row(
@@ -836,9 +836,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => UserPostsFeedScreen(
-                  posts: allPosts,
-                  initialPostId: post['_id'],
+                builder: (_) => PostDetailsScreen(
+                  post: post,
+                  allPosts: allPosts,
                 ),
               ),
             );
@@ -1012,7 +1012,15 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   void _showPostDetails(dynamic post) {
-    // Implement as needed
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PostDetailsScreen(
+          post: post,
+          allPosts: allPosts,
+        ),
+      ),
+    );
   }
 
   Widget _buildPortfolioCategoryList() {
@@ -1944,9 +1952,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => UserPostsFeedScreen(
-                  posts: allPosts,
-                  initialPostId: post['_id'],
+                builder: (_) => PostDetailsScreen(
+                  post: post,
+                  allPosts: allPosts,
                 ),
               ),
             );
@@ -2101,9 +2109,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => UserPostsFeedScreen(
-                                posts: postsInCategory,
-                                initialPostId: post['_id'],
+                              builder: (_) => PostDetailsScreen(
+                                post: post,
+                                allPosts: postsInCategory,
                               ),
                             ),
                           );
@@ -2327,7 +2335,7 @@ class _VideoGridPreviewState extends State<_VideoGridPreview> {
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.network(widget.url)
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
       ..initialize().then((_) {
         setState(() {
           _initialized = true;

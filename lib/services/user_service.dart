@@ -231,6 +231,21 @@ class UserService {
     return response.statusCode == 200;
   }
 
+  // Check follow status for a user
+  static Future<Map<String, dynamic>?> getFollowStatus(String uid) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final idToken = await user?.getIdToken();
+    final response = await http.get(
+      Uri.parse('${ApiConstants.baseUrl}/user/$uid/follow-status'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    print('Follow status error: ${response.statusCode} - ${response.body}');
+    return null;
+  }
+
   // Search users by name or username
   static Future<List<dynamic>> searchUsers(String query) async {
     final user = FirebaseAuth.instance.currentUser;
