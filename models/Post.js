@@ -7,7 +7,7 @@ const PostSchema = new mongoose.Schema({
   subCategory: { type: String },
   description: { type: String, required: true },
   url: { type: String, required: true },
-  mediaType: { type: String, enum: ['image', 'video'], required: true },
+  mediaType: { type: String, enum: ['image', 'video', 'audio'], required: true },
   likes: { type: Number, default: 0 },
   comments: [
     {

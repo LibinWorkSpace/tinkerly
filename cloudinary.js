@@ -12,7 +12,7 @@ const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'tinkerly_uploads',
-    allowed_formats: ['jpg', 'png', 'jpeg', 'mp4', 'mov', 'webm', 'pdf', 'docx'],
+    allowed_formats: ['jpg', 'png', 'jpeg', 'mp4', 'mov', 'webm', 'mp3', 'wav', 'aac', 'ogg', 'pdf', 'docx'],
     resource_type: 'auto',
   },
 });

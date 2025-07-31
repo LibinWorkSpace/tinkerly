@@ -190,7 +190,8 @@ app.post('/upload', parser.single('file'), async (req, res) => {
       userId: req.user.uid,
       url: file.path,
       type: file.mimetype.startsWith('image') ? 'image' :
-            file.mimetype.startsWith('video') ? 'video' : 'other',
+            file.mimetype.startsWith('video') ? 'video' :
+            file.mimetype.startsWith('audio') ? 'audio' : 'other',
       public_id: file.filename,
     });
     await media.save();
@@ -528,7 +529,8 @@ app.delete('/post/:id', async (req, res) => {
 
       if (publicId) {
         // Determine resource type based on post mediaType
-        const resourceType = post.mediaType === 'video' ? 'video' : 'image';
+        const resourceType = post.mediaType === 'video' ? 'video' :
+                            post.mediaType === 'audio' ? 'video' : 'image'; // Cloudinary treats audio as video resource type
         console.log('Deleting from Cloudinary - public_id:', publicId, 'resource_type:', resourceType);
 
         const result = await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
@@ -584,11 +586,14 @@ app.get('/posts', async (req, res) => {
   }
 });
 
-// Fetch posts for any user by UID
+// Fetch posts for any user by UID (excluding audio posts - they belong in portfolios)
 app.get('/posts/user/:uid', async (req, res) => {
   try {
     const { uid } = req.params;
-    const posts = await Post.find({ userId: uid }).sort({ createdAt: -1 });
+    const posts = await Post.find({
+      userId: uid,
+      mediaType: { $ne: 'audio' }
+    }).sort({ createdAt: -1 });
     // Attach user info to each post
     const user = await User.findOne({ uid });
     const postsWithUser = posts.map(post => ({
@@ -630,10 +635,63 @@ app.get('/posts/all', async (req, res) => {
   }
 });
 
-// Get feed with portfolio information
+// Get audio posts for a specific user (for music portfolio)
+app.get('/posts/user/:uid/audio', async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const audioPosts = await Post.find({
+      userId: uid,
+      mediaType: 'audio'
+    }).sort({ createdAt: -1 }).lean();
+
+    // Attach user info to each post
+    const user = await User.findOne({ uid });
+    const postsWithUser = audioPosts.map(post => ({
+      ...post,
+      name: user ? user.name : '',
+      username: user ? user.username : '',
+      profileImageUrl: user ? user.profileImageUrl : '',
+      likedBy: post.likedBy || [],
+    }));
+
+    res.json(postsWithUser);
+  } catch (err) {
+    console.error('Error fetching user audio posts:', err);
+    res.status(500).json({ error: 'Failed to fetch user audio posts' });
+  }
+});
+
+// Get only audio posts for music category
+app.get('/posts/audio', async (req, res) => {
+  try {
+    const audioPosts = await Post.find({ mediaType: 'audio' }).sort({ createdAt: -1 }).lean();
+
+    // Fetch user information for each post
+    const userIds = [...new Set(audioPosts.map(post => post.userId))];
+    const users = await User.find({ uid: { $in: userIds } });
+    const userMap = {};
+    users.forEach(user => {
+      userMap[user.uid] = user;
+    });
+
+    // Add user info to posts
+    const postsWithUserInfo = audioPosts.map(post => ({
+      ...post,
+      username: userMap[post.userId]?.username || 'Unknown User',
+      userProfileImage: userMap[post.userId]?.profileImageUrl || null,
+    }));
+
+    res.json(postsWithUserInfo);
+  } catch (err) {
+    console.error('Error fetching audio posts:', err);
+    res.status(500).json({ error: 'Failed to fetch audio posts' });
+  }
+});
+
+// Get feed with portfolio information (excluding audio posts)
 app.get('/feed', async (req, res) => {
   try {
-    const posts = await Post.find({}).sort({ createdAt: -1 }).lean();
+    const posts = await Post.find({ mediaType: { $ne: 'audio' } }).sort({ createdAt: -1 }).lean();
     
     // Fetch all users and portfolios in one go for efficiency
     const users = await User.find({});
