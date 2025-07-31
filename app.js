@@ -336,12 +336,22 @@ app.get('/users/search', async (req, res) => {
 // Follow a user
 app.post('/user/:uid/follow', async (req, res) => {
   try {
+    console.log('=== FOLLOW REQUEST DEBUG ===');
+    console.log('Headers:', req.headers);
+    console.log('User from token:', req.user);
+
     const targetUid = req.params.uid;
-    const currentUid = req.user.uid;
+    const currentUid = req.user?.uid;
 
     console.log('Follow request - Target UID:', targetUid, 'Current UID:', currentUid);
 
+    if (!currentUid) {
+      console.log('ERROR: No current user UID found');
+      return res.status(400).json({ error: 'Authentication failed - no user ID' });
+    }
+
     if (targetUid === currentUid) {
+      console.log('ERROR: Trying to follow yourself');
       return res.status(400).json({ error: 'Cannot follow yourself' });
     }
 
@@ -349,8 +359,11 @@ app.post('/user/:uid/follow', async (req, res) => {
     const currentUser = await User.findOne({ uid: currentUid });
 
     console.log('Target user found:', !!targetUser, 'Current user found:', !!currentUser);
+    if (targetUser) console.log('Target user ID:', targetUser._id);
+    if (currentUser) console.log('Current user ID:', currentUser._id);
 
     if (!targetUser || !currentUser) {
+      console.log('ERROR: User not found in database');
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -360,14 +373,19 @@ app.post('/user/:uid/follow', async (req, res) => {
 
     // Check if already following (using ObjectId comparison)
     const isAlreadyFollowing = currentUser.following.some(id => id.equals(targetUser._id));
+    console.log('Is already following:', isAlreadyFollowing);
+
     if (isAlreadyFollowing) {
+      console.log('ERROR: Already following this user');
       return res.status(400).json({ error: 'Already following this user' });
     }
 
     // Add to following/followers lists using ObjectIds
+    console.log('Adding to following/followers lists...');
     currentUser.following.push(targetUser._id);
     targetUser.followers.push(currentUser._id);
 
+    console.log('Saving users...');
     await currentUser.save();
     await targetUser.save();
 
@@ -375,6 +393,7 @@ app.post('/user/:uid/follow', async (req, res) => {
     res.json({ success: true, message: 'User followed successfully' });
   } catch (err) {
     console.error('Follow error:', err);
+    console.error('Error stack:', err.stack);
     res.status(500).json({ error: 'Failed to follow user', details: err.message });
   }
 });
@@ -414,6 +433,23 @@ app.post('/user/:uid/unfollow', async (req, res) => {
   }
 });
 
+// Get a single post by ID (for debugging)
+app.get('/post/:id', async (req, res) => {
+  try {
+    console.log('Getting post with ID:', req.params.id);
+    const post = await Post.findById(req.params.id);
+    if (!post) {
+      console.log('Post not found:', req.params.id);
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    console.log('Post found:', post._id, 'owner:', post.userId);
+    res.json(post);
+  } catch (err) {
+    console.error('Get post error:', err);
+    res.status(500).json({ error: 'Failed to get post' });
+  }
+});
+
 // Create a new post
 app.post('/post', async (req, res) => {
   try {
@@ -448,28 +484,66 @@ app.post('/post', async (req, res) => {
 // DELETE post by ID
 app.delete('/post/:id', async (req, res) => {
   try {
+    console.log('=== DELETE POST REQUEST ===');
+    console.log('Post ID:', req.params.id);
+    console.log('User ID:', req.user.uid);
+
     const post = await Post.findById(req.params.id);
+    console.log('Post found:', !!post);
+
     if (!post) {
       console.error('Post not found:', req.params.id);
       return res.status(404).json({ error: 'Post not found' });
     }
+
+    console.log('Post owner:', post.userId);
+    console.log('Current user:', req.user.uid);
+
     if (post.userId !== req.user.uid) {
       console.error('Forbidden: user', req.user.uid, 'tried to delete post owned by', post.userId);
       return res.status(403).json({ error: 'Forbidden' });
     }
-    // Try to find and delete associated media
+    // Try to find and delete associated media from Cloudinary
     try {
+      console.log('Looking for media with URL:', post.url);
+
+      // Try to extract public_id from Cloudinary URL
+      let publicId = null;
+      if (post.url && post.url.includes('cloudinary.com')) {
+        const urlParts = post.url.split('/');
+        const uploadIndex = urlParts.findIndex(part => part === 'upload');
+        if (uploadIndex !== -1 && uploadIndex + 2 < urlParts.length) {
+          // Get the public_id (filename without extension)
+          const filename = urlParts[urlParts.length - 1];
+          publicId = filename.split('.')[0];
+          // Include folder path if exists
+          if (uploadIndex + 3 < urlParts.length) {
+            const folder = urlParts.slice(uploadIndex + 2, -1).join('/');
+            publicId = folder + '/' + publicId;
+          }
+        }
+      }
+
+      console.log('Extracted public_id:', publicId);
+
+      if (publicId) {
+        // Determine resource type based on post mediaType
+        const resourceType = post.mediaType === 'video' ? 'video' : 'image';
+        console.log('Deleting from Cloudinary - public_id:', publicId, 'resource_type:', resourceType);
+
+        const result = await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+        console.log('Cloudinary deletion result:', result);
+      }
+
+      // Also try to find and delete from Media collection
       const Media = mongoose.model('Media');
       const media = await Media.findOne({ url: post.url });
       if (media) {
-        // Use correct resource type for Cloudinary deletion
-        const resourceType = (media.type === 'image' || media.type === 'video') ? media.type : 'raw';
-        console.log('Deleting associated media from Cloudinary:', media.public_id, 'type:', resourceType);
-        await cloudinary.uploader.destroy(media.public_id, { resource_type: resourceType });
+        console.log('Found media in DB, deleting:', media.public_id);
         await media.deleteOne();
-        console.log('Associated media deleted from DB and Cloudinary.');
+        console.log('Media deleted from DB.');
       } else {
-        console.log('No associated media found for post URL:', post.url);
+        console.log('No media record found in DB for URL:', post.url);
       }
     } catch (mediaErr) {
       console.error('Error deleting associated media:', mediaErr);
