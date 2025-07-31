@@ -211,24 +211,77 @@ class UserService {
 
   // Follow a user by UID
   static Future<bool> followUser(String uid) async {
-    final user = FirebaseAuth.instance.currentUser;
-    final idToken = await user?.getIdToken();
-    final response = await http.post(
-      Uri.parse('${ApiConstants.baseUrl}/user/$uid/follow'),
-      headers: {'Authorization': 'Bearer $idToken'},
-    );
-    return response.statusCode == 200;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        print('ERROR: No authenticated user');
+        return false;
+      }
+
+      final idToken = await user.getIdToken();
+      print('Following user: $uid');
+      print('Current user: ${user.uid}');
+      print('Token length: ${idToken?.length ?? 0}');
+
+      final response = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}/user/$uid/follow'),
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('Follow response status: ${response.statusCode}');
+      print('Follow response body: ${response.body}');
+
+      // Handle "Already following" as a success case
+      if (response.statusCode == 400 && response.body.contains('Already following')) {
+        print('User is already being followed - treating as success');
+        return true;
+      }
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Follow error: $e');
+      return false;
+    }
   }
 
   // Unfollow a user by UID
   static Future<bool> unfollowUser(String uid) async {
-    final user = FirebaseAuth.instance.currentUser;
-    final idToken = await user?.getIdToken();
-    final response = await http.post(
-      Uri.parse('${ApiConstants.baseUrl}/user/$uid/unfollow'),
-      headers: {'Authorization': 'Bearer $idToken'},
-    );
-    return response.statusCode == 200;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        print('ERROR: No authenticated user');
+        return false;
+      }
+
+      final idToken = await user.getIdToken();
+      print('Unfollowing user: $uid');
+      print('Current user: ${user.uid}');
+
+      final response = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}/user/$uid/unfollow'),
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('Unfollow response status: ${response.statusCode}');
+      print('Unfollow response body: ${response.body}');
+
+      // Handle "Not following" as a success case
+      if (response.statusCode == 400 && response.body.contains('Not following')) {
+        print('User is not being followed - treating as success');
+        return true;
+      }
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Unfollow error: $e');
+      return false;
+    }
   }
 
   // Check follow status for a user
@@ -291,15 +344,67 @@ class UserService {
     }
   }
 
+  // Check if a post exists (for debugging)
+  static Future<Map<String, dynamic>?> getPost(String postId) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
+
+      final idToken = await user.getIdToken();
+      final response = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}/post/$postId'),
+        headers: {'Authorization': 'Bearer $idToken'},
+      );
+
+      print('Get post response status: ${response.statusCode}');
+      print('Get post response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return null;
+    } catch (e) {
+      print('Get post error: $e');
+      return null;
+    }
+  }
+
   // Delete a post by ID
   static Future<bool> deletePost(String postId) async {
-    final user = FirebaseAuth.instance.currentUser;
-    final idToken = await user?.getIdToken();
-    final response = await http.delete(
-      Uri.parse('${ApiConstants.baseUrl}/post/$postId'),
-      headers: {'Authorization': 'Bearer $idToken'},
-    );
-    return response.statusCode == 200;
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        print('ERROR: No authenticated user for delete');
+        return false;
+      }
+
+      final idToken = await user.getIdToken();
+      print('Deleting post: $postId');
+      print('Current user: ${user.uid}');
+
+      // First check if post exists
+      final post = await getPost(postId);
+      if (post == null) {
+        print('ERROR: Post not found before delete attempt');
+        return false;
+      }
+
+      final response = await http.delete(
+        Uri.parse('${ApiConstants.baseUrl}/post/$postId'),
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('Delete response status: ${response.statusCode}');
+      print('Delete response body: ${response.body}');
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Delete error: $e');
+      return false;
+    }
   }
 
   // Like a post by ID

@@ -1765,13 +1765,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
       final profile = await UserService.fetchPublicProfile(widget.uid);
       final posts = await UserService.fetchPostsForUser(widget.uid);
       final fetchedPortfolios = await PortfolioService.fetchUserPortfolios(widget.uid);
-      
-      // Check if the current user is following this user
-      final currentUser = await UserService.fetchUserProfile();
-      final followingList = currentUser != null && currentUser['following'] != null
-          ? List<String>.from(currentUser['following'])
-          : <String>[];
-      final isUserFollowing = followingList.contains(widget.uid);
+
+      // Check if the current user is following this user using the proper API
+      final followStatus = await UserService.getFollowStatus(widget.uid);
+      final isUserFollowing = followStatus != null ? (followStatus['isFollowing'] ?? false) : false;
+
+      print('Follow status for ${widget.uid}: $isUserFollowing'); // Debug log
+
       if (!mounted) return;
       if (_tabController == null || _tabController!.length != 2) {
         _tabController?.dispose();
@@ -1786,6 +1786,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
         isLoading = false;
       });
     } catch (e) {
+      print('Error loading public profile: $e'); // Debug log
       setState(() {
         isError = true;
         isLoading = false;
@@ -1795,15 +1796,21 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
 
   Future<void> _toggleFollow() async {
     setState(() { isLoading = true; });
+
     bool success;
     if (isFollowing) {
       success = await UserService.unfollowUser(widget.uid);
     } else {
       success = await UserService.followUser(widget.uid);
     }
+
     if (success) {
+      // Refresh the follow status from the server to ensure accuracy
+      final followStatus = await UserService.getFollowStatus(widget.uid);
+      final newFollowingStatus = followStatus != null ? (followStatus['isFollowing'] ?? false) : !isFollowing;
+
       setState(() {
-        isFollowing = !isFollowing;
+        isFollowing = newFollowingStatus;
         // Update follower count in UI
         if (userProfile != null) {
           int count = userProfile!["followerCount"] ?? 0;
@@ -1811,9 +1818,12 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
         }
         isLoading = false;
       });
-      return;
+
+      print('Follow toggle successful. New status: $isFollowing'); // Debug log
+    } else {
+      print('Follow toggle failed'); // Debug log
+      setState(() { isLoading = false; });
     }
-    setState(() { isLoading = false; });
   }
 
   @override
