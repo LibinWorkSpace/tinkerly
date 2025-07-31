@@ -4,6 +4,7 @@ import '../../services/portfolio_service.dart';
 import '../../models/product_model.dart';
 import '../../services/product_service.dart';
 import '../../widgets/main_bottom_nav_bar.dart';
+import '../../widgets/audio_player_widget.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'edit_portfolio_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -39,23 +40,23 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
       print('Loading portfolio data for ID: ${widget.portfolioId}'); // Debug log
       final fullData = await PortfolioService.fetchPortfolioFull(widget.portfolioId);
       print('Full data received: $fullData'); // Debug log
-      
+
       portfolio = Portfolio.fromMap(fullData);
       posts = fullData['posts'] ?? [];
       products = (fullData['products'] as List?)?.map((e) => Product.fromMap(e)).toList() ?? [];
       followers = await PortfolioService.fetchPortfolioFollowers(widget.portfolioId);
-      
+
       // Check if current user is following this portfolio
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser != null) {
         _isFollowing = followers.any((follower) => follower['_id'] == currentUser.uid || follower['uid'] == currentUser.uid);
       }
-      
+
       print('Portfolio loaded: ${portfolio?.profilename}'); // Debug log
       print('Posts count: ${posts.length}'); // Debug log
       print('Products count: ${products.length}'); // Debug log
       print('Is following: $_isFollowing'); // Debug log
-      
+
       _tabController ??= TabController(length: 2, vsync: this);
       setState(() { _isLoading = false; });
     } catch (e) {
@@ -71,9 +72,9 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
 
   Future<void> _toggleFollow() async {
     if (_isFollowLoading) return;
-    
+
     setState(() { _isFollowLoading = true; });
-    
+
     try {
       // TODO: Implement portfolio follow/unfollow API calls
       // For now, just toggle the state locally
@@ -87,7 +88,7 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
           // In real implementation, this should be handled by the backend
         }
       });
-      
+
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -247,9 +248,9 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
                       height: 48,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: _isCurrentUserOwner() 
+                          colors: _isCurrentUserOwner()
                               ? [Color(0xFF6C63FF), Color(0xFFFF6B9D)]
-                              : _isFollowing 
+                              : _isFollowing
                                   ? [Colors.grey[400]!, Colors.grey[500]!]
                                   : [Color(0xFF4CAF50), Color(0xFF45A049)],
                           begin: Alignment.centerLeft,
@@ -265,7 +266,7 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
                         ],
                       ),
                       child: ElevatedButton.icon(
-                        onPressed: _isCurrentUserOwner() 
+                        onPressed: _isCurrentUserOwner()
                             ? () async {
                                 final result = await Navigator.push(
                                   context,
@@ -279,7 +280,7 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
                                 }
                               }
                             : _isFollowLoading ? null : _toggleFollow,
-                        icon: _isFollowLoading 
+                        icon: _isFollowLoading
                             ? SizedBox(
                                 width: 20,
                                 height: 20,
@@ -289,18 +290,18 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
                                 ),
                               )
                             : Icon(
-                                _isCurrentUserOwner() 
-                                    ? Icons.edit 
-                                    : _isFollowing 
-                                        ? Icons.person_remove 
+                                _isCurrentUserOwner()
+                                    ? Icons.edit
+                                    : _isFollowing
+                                        ? Icons.person_remove
                                         : Icons.person_add,
-                                color: Colors.white, 
+                                color: Colors.white,
                                 size: 20,
                               ),
                         label: Text(
-                          _isCurrentUserOwner() 
+                          _isCurrentUserOwner()
                               ? 'Edit Portfolio'
-                              : _isFollowing 
+                              : _isFollowing
                                   ? 'Unfollow'
                                   : 'Follow',
                           style: GoogleFonts.poppins(
@@ -413,7 +414,7 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
 
   Widget _buildPostsGrid(Color brandColor) {
     print('Building posts grid with ${posts.length} posts'); // Debug log
-    
+
     if (posts.isEmpty) {
       return Center(
         child: Container(
@@ -449,7 +450,7 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
         ),
       );
     }
-    
+
     return GridView.builder(
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -462,21 +463,59 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
       itemBuilder: (context, index) {
         final post = posts[index];
         print('Building post item $index: ${post['_id']}'); // Debug log
-        
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+
+        return GestureDetector(
+          onTap: () {
+            if (post['mediaType'] == 'audio') {
+              // Show audio player dialog
+              showDialog(
+                context: context,
+                builder: (context) => Dialog(
+                  backgroundColor: Colors.transparent,
+                  child: Container(
+                    padding: EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          post['description'] ?? 'Audio Track',
+                          style: GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 20),
+                        AudioPlayerWidget(
+                          audioUrl: post['url'],
+                          title: post['description'] ?? 'Audio Track',
+                          height: 200,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+            // Handle other media types if needed
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
             child: Column(
               children: [
                 Expanded(
@@ -507,10 +546,58 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
                               );
                             },
                           )
-                        : Container(
-                            color: brandColor.withOpacity(0.2),
-                            child: Icon(Icons.videocam, color: brandColor, size: 32),
-                          ),
+                        : post['mediaType'] == 'audio'
+                            ? Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [Color(0xFF1DB954), Color(0xFF1ED760)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.music_note, color: Colors.white, size: 40),
+                                    SizedBox(height: 8),
+                                    Text(
+                                      'Audio Track',
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Container(
+                                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.play_arrow, color: Colors.white, size: 16),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            'Play',
+                                            style: GoogleFonts.poppins(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : Container(
+                                color: brandColor.withOpacity(0.2),
+                                child: Icon(Icons.videocam, color: brandColor, size: 32),
+                              ),
                   ),
                 ),
                 Expanded(
@@ -530,6 +617,7 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
                   ),
                 ),
               ],
+            ),
             ),
           ),
         );
@@ -556,4 +644,4 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
       },
     );
   }
-} 
+}

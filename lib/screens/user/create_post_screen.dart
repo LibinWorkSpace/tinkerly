@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../services/user_service.dart';
 import '../../constants/categories.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -28,9 +29,12 @@ class CreatePostScreen extends StatefulWidget {
 class _CreatePostScreenState extends State<CreatePostScreen> {
   File? _mediaFile;
   Uint8List? _webImageBytes;
-  String? _mediaType; // 'image' or 'video'
+  String? _mediaType; // 'image', 'video', or 'audio'
   String? _webVideoUrl; // For web video preview
   html.Blob? _webVideoBlob; // To release URL later
+  String? _webAudioUrl; // For web audio preview
+  html.Blob? _webAudioBlob; // To release URL later
+  String? _audioFileName; // Store audio file name
   final _descController = TextEditingController();
   String? _selectedCategory;
   String? _selectedSubCategory;
@@ -38,6 +42,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   bool _isLoading = false;
   List<String> _registeredCategories = [];
   VideoPlayerController? _videoController;
+  // AudioPlayer? _audioPlayer; // Will add when package is installed
   List<Portfolio> _userPortfolios = [];
   Portfolio? _selectedPortfolio;
 
@@ -136,7 +141,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   Future<void> _pickMedia() async {
     final picker = ImagePicker();
-    final picked = await showModalBottomSheet<XFile?>(
+    final picked = await showModalBottomSheet<dynamic>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
@@ -260,6 +265,52 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     },
                   ),
                 ),
+                const SizedBox(height: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: ListTile(
+                    leading: Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF6C63FF), Color(0xFFFF6B9D)],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(Icons.music_note, color: Colors.white, size: 20),
+                    ),
+                    title: Text(
+                      'Pick Music',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Choose audio file',
+                      style: GoogleFonts.poppins(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 12,
+                      ),
+                    ),
+                    onTap: () async {
+                      final result = await FilePicker.platform.pickFiles(
+                        type: FileType.audio,
+                        allowMultiple: false,
+                      );
+                      Navigator.pop(context, result);
+                    },
+                  ),
+                ),
                 const SizedBox(height: 20),
               ],
             ),
@@ -267,8 +318,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         ),
       ),
     );
-    
-    if (picked != null) {
+
+    if (picked != null && picked is XFile) {
+      // Handle XFile (image/video)
       bool isVideo = false;
       if (kIsWeb) {
         final mimeType = picked.mimeType ?? '';
@@ -337,11 +389,59 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           debugPrint('Set _mediaType to image');
         }
       }
+    } else if (picked is FilePickerResult) {
+      // Handle audio file selection
+      final file = picked.files.first;
+      if (file.bytes != null || file.path != null) {
+        setState(() {
+          _audioFileName = file.name;
+          _mediaType = 'audio';
+          _webImageBytes = null;
+          _webVideoUrl = null;
+          _webVideoBlob = null;
+          _mediaFile = null;
+        });
+
+        if (kIsWeb && file.bytes != null) {
+          // For web, create blob URL for audio preview
+          final extension = file.extension?.toLowerCase() ?? 'mp3';
+          final mimeType = extension == 'mp3' ? 'audio/mp3' :
+                          extension == 'wav' ? 'audio/wav' :
+                          extension == 'aac' ? 'audio/aac' :
+                          extension == 'ogg' ? 'audio/ogg' : 'audio/mp3';
+          final blob = html.Blob([file.bytes!], mimeType);
+          final url = Url.createObjectUrlFromBlob(blob);
+          setState(() {
+            _webAudioUrl = url;
+            _webAudioBlob = blob;
+          });
+        } else if (!kIsWeb && file.path != null) {
+          // For mobile, store the file
+          setState(() {
+            _mediaFile = File(file.path!);
+          });
+        }
+
+        debugPrint('Audio file selected: ${file.name}, size: ${file.size}');
+      }
     }
   }
 
   Future<void> _submitPost() async {
-    if (((kIsWeb && _mediaType == 'image' && _webImageBytes == null) || (!kIsWeb && _mediaType == 'image' && _mediaFile == null)) || _selectedPortfolio == null || _descController.text.isEmpty) return;
+    if (_mediaType == null || _selectedPortfolio == null || _descController.text.isEmpty) return;
+
+    // Check if media is properly selected based on type
+    bool hasValidMedia = false;
+    if (_mediaType == 'image') {
+      hasValidMedia = (kIsWeb && _webImageBytes != null) || (!kIsWeb && _mediaFile != null);
+    } else if (_mediaType == 'video') {
+      hasValidMedia = (kIsWeb && _webVideoBlob != null) || (!kIsWeb && _mediaFile != null);
+    } else if (_mediaType == 'audio') {
+      hasValidMedia = (kIsWeb && _webAudioBlob != null) || (!kIsWeb && _mediaFile != null);
+    }
+
+    if (!hasValidMedia) return;
+
     setState(() { _isLoading = true; });
     try {
       String? url;
@@ -360,6 +460,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         final bytes = await completer.future;
         url = await UserService.uploadBytes(bytes, 'post_video.mp4');
       } else if (!kIsWeb && _mediaType == 'video' && _mediaFile != null) {
+        url = await UserService.uploadFile(_mediaFile!.path);
+      } else if (kIsWeb && _mediaType == 'audio' && _webAudioBlob != null) {
+        // For web audio, convert blob to bytes
+        final reader = html.FileReader();
+        final completer = Completer<Uint8List>();
+        reader.readAsArrayBuffer(_webAudioBlob!);
+        reader.onLoadEnd.listen((event) {
+          completer.complete(reader.result as Uint8List);
+        });
+        final bytes = await completer.future;
+        url = await UserService.uploadBytes(bytes, _audioFileName ?? 'post_audio.mp3');
+      } else if (!kIsWeb && _mediaType == 'audio' && _mediaFile != null) {
         url = await UserService.uploadFile(_mediaFile!.path);
       }
       if (url == null) throw Exception('Upload failed');
@@ -527,6 +639,75 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           ),
         );
       }
+    } else if (_mediaType == 'audio') {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF6C63FF).withOpacity(0.8), Color(0xFFFF6B9D).withOpacity(0.8)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.music_note,
+                size: 48,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _audioFileName ?? 'Audio File',
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Audio ready for upload',
+              style: GoogleFonts.poppins(
+                color: Colors.white.withOpacity(0.8),
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Simple audio controls placeholder
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    onPressed: () {
+                      // TODO: Implement audio preview playback when audioplayers package is installed
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Audio preview will be available after installing audio player')),
+                      );
+                    },
+                    icon: Icon(Icons.play_arrow, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
     } else {
       return const SizedBox.shrink();
     }
@@ -645,13 +826,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       )
                     : SingleChildScrollView(
                         physics: BouncingScrollPhysics(),
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             // Step 1: Media Selection
                             Container(
-                              padding: EdgeInsets.all(20),
+                              padding: EdgeInsets.all(16),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(16),
@@ -669,7 +850,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                 children: [
                                   _buildStepHeader(
                                     '1. Select Media',
-                                    done: kIsWeb ? (_webImageBytes != null || _webVideoUrl != null) : (_mediaFile != null),
+                                    done: kIsWeb ? (_webImageBytes != null || _webVideoUrl != null || _webAudioUrl != null) : (_mediaFile != null),
                                   ),
                                   const SizedBox(height: 16),
                                   GestureDetector(
@@ -681,8 +862,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                         color: Color(0xFFF7FAFC),
                                         borderRadius: BorderRadius.circular(16),
                                         border: Border.all(
-                                          color: (kIsWeb ? (_webImageBytes == null && _webVideoUrl == null) : _mediaFile == null) 
-                                              ? Color(0xFFE2E8F0) 
+                                          color: (kIsWeb ? (_webImageBytes == null && _webVideoUrl == null && _webAudioUrl == null) : _mediaFile == null)
+                                              ? Color(0xFFE2E8F0)
                                               : primaryColor,
                                           width: 2,
                                         ),
@@ -695,7 +876,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                           ),
                                         ],
                                       ),
-                                      child: (kIsWeb ? (_webImageBytes == null && _webVideoUrl == null) : _mediaFile == null)
+                                      child: (kIsWeb ? (_webImageBytes == null && _webVideoUrl == null && _webAudioUrl == null) : _mediaFile == null)
                                           ? Column(
                                               mainAxisAlignment: MainAxisAlignment.center,
                                               children: [
@@ -717,7 +898,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                                 ),
                                                 const SizedBox(height: 16),
                                                 Text(
-                                                  'Tap to select image or video',
+                                                  'Tap to select image, video, or music',
                                                   style: GoogleFonts.poppins(
                                                     color: Colors.white.withOpacity(0.8),
                                                     fontSize: 16,
@@ -744,11 +925,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                               ),
                             ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
                             
-                            const SizedBox(height: 24),
-                            
+                            const SizedBox(height: 20),
+
                             // Step 2: Portfolio Selection
                             Container(
-                              padding: EdgeInsets.all(20),
+                              padding: EdgeInsets.all(16),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(16),
@@ -876,11 +1057,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                               ),
                             ).animate().fadeIn(duration: 400.ms, delay: 150.ms),
                             
-                            const SizedBox(height: 24),
-                            
+                            const SizedBox(height: 20),
+
                             // Step 3: Description
                             Container(
-                              padding: EdgeInsets.all(20),
+                              padding: EdgeInsets.all(16),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(16),
@@ -957,7 +1138,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                     ? null
                                     : Colors.white.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(16),
-                                boxShadow: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _descController.text.isNotEmpty
+                                boxShadow: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null || _webAudioUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _descController.text.isNotEmpty
                                     ? [
                                         BoxShadow(
                                           color: primaryColor.withOpacity(0.4),
@@ -969,7 +1150,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                     : null,
                               ),
                               child: ElevatedButton(
-                                onPressed: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _descController.text.isNotEmpty && !_isLoading
+                                onPressed: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null || _webAudioUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _descController.text.isNotEmpty && !_isLoading
                                     ? _submitPost
                                     : null,
                                 style: ElevatedButton.styleFrom(
@@ -998,7 +1179,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             
                             const SizedBox(height: 16),
                             
-                            if (((kIsWeb && _webImageBytes == null && _webVideoUrl == null) || (!kIsWeb && _mediaFile == null)) || _selectedPortfolio == null || _descController.text.isEmpty)
+                            if (((kIsWeb && _webImageBytes == null && _webVideoUrl == null && _webAudioUrl == null) || (!kIsWeb && _mediaFile == null)) || _selectedPortfolio == null || _descController.text.isEmpty)
                               Container(
                                 padding: EdgeInsets.all(16),
                                 decoration: BoxDecoration(
@@ -1027,7 +1208,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                 ),
                               ).animate().fadeIn(duration: 400.ms, delay: 500.ms),
                             
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 16),
                           ],
                         ),
                       ),

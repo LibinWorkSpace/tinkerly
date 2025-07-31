@@ -14,6 +14,7 @@ import '../auth/set_password_screen.dart'; // Added import for SetPasswordScreen
 
 import '../auth/phone_status_screen.dart'; // Added import for PhoneStatusScreen
 import 'package:google_fonts/google_fonts.dart';
+import '../../widgets/music_portfolio_widget.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../constants/categories.dart';
 import '../../services/portfolio_service.dart';
@@ -817,7 +818,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildProfileGrid(Color brandColor) {
-    if (allPosts.isEmpty) {
+    // Filter out audio posts - they should only appear in Portfolio section
+    final nonAudioPosts = allPosts.where((post) => post['mediaType'] != 'audio').toList();
+
+    if (nonAudioPosts.isEmpty) {
       return Center(child: Text('No posts yet'));
     }
     return GridView.builder(
@@ -828,9 +832,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         mainAxisSpacing: 12,
         childAspectRatio: 0.8,
       ),
-      itemCount: allPosts.length,
+      itemCount: nonAudioPosts.length,
       itemBuilder: (context, index) {
-        final post = allPosts[index];
+        final post = nonAudioPosts[index];
         return GestureDetector(
           onTap: () {
             Navigator.push(
@@ -1287,12 +1291,32 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
                 child: post['mediaType'] == 'image'
                     ? Image.network(post['url'], height: 120, width: double.infinity, fit: BoxFit.cover)
-                    : Container(
-                        height: 120,
-                        width: double.infinity,
-                        color: Color(0xFFB0BEC5).withAlpha((0.12 * 255).toInt()),
-                        child: Icon(Icons.videocam_rounded, color: Color(0xFF4FC3F7), size: 48),
-                      ),
+                    : post['mediaType'] == 'video'
+                        ? Container(
+                            height: 120,
+                            width: double.infinity,
+                            color: Color(0xFFB0BEC5).withAlpha((0.12 * 255).toInt()),
+                            child: Icon(Icons.videocam_rounded, color: Color(0xFF4FC3F7), size: 48),
+                          )
+                        : post['mediaType'] == 'audio'
+                            ? Container(
+                                height: 120,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [Color(0xFF6C63FF).withOpacity(0.8), Color(0xFFFF6B9D).withOpacity(0.8)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                ),
+                                child: Icon(Icons.music_note, color: Colors.white, size: 48),
+                              )
+                            : Container(
+                                height: 120,
+                                width: double.infinity,
+                                color: Color(0xFFB0BEC5).withAlpha((0.12 * 255).toInt()),
+                                child: Icon(Icons.image, color: Colors.grey, size: 48),
+                              ),
               ),
               Padding(
                 padding: const EdgeInsets.all(14),
@@ -1943,7 +1967,10 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
   }
 
   Widget _buildProfileGrid(Color brandColor) {
-    if (allPosts.isEmpty) {
+    // Filter out audio posts - they should only appear in Portfolio section
+    final nonAudioPosts = allPosts.where((post) => post['mediaType'] != 'audio').toList();
+
+    if (nonAudioPosts.isEmpty) {
       return Center(child: Text('No posts yet'));
     }
     return GridView.builder(
@@ -1954,9 +1981,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
         mainAxisSpacing: 12,
         childAspectRatio: 0.8,
       ),
-      itemCount: allPosts.length,
+      itemCount: nonAudioPosts.length,
       itemBuilder: (context, index) {
-        final post = allPosts[index];
+        final post = nonAudioPosts[index];
         return GestureDetector(
           onTap: () {
             Navigator.push(
@@ -2166,63 +2193,150 @@ class PortfolioCategoryList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final registeredCategories = List<String>.from(userProfile['categories'] ?? []);
-    if (registeredCategories.isEmpty) {
-      return Center(child: Text('No portfolios yet'));
-    }
-    return ListView.separated(
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final isOwnProfile = currentUserId == userProfile['uid'];
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-      itemCount: registeredCategories.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 18),
-      itemBuilder: (context, index) {
-        final category = registeredCategories[index];
-        final postsInCategory = allPosts.where((p) => p['category'] == category).toList();
-        return InkWell(
+      child: Column(
+        children: [
+          // Music Portfolio Section (Always show at top)
+          Container(
+            margin: EdgeInsets.only(bottom: 24),
+            child: MusicPortfolioWidget(
+              userId: userProfile['uid'] ?? '',
+              isOwnProfile: isOwnProfile,
+            ),
+          ),
+
+          // Regular Categories Section
+          if (userProfile['categories'] != null && (userProfile['categories'] as List).isNotEmpty) ...[
+            // Section Header
+            Container(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.category,
+                    color: Color(0xFF6C63FF),
+                    size: 20,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Categories',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2D3748),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Categories List
+            ...(userProfile['categories'] as List).asMap().entries.map((entry) {
+              final index = entry.key;
+              final category = entry.value;
+              final postsInCategory = allPosts.where((p) => p['category'] == category).toList();
+
+              return Container(
+                margin: EdgeInsets.only(bottom: 18),
+                child: _buildCategoryCard(category, postsInCategory),
+              );
+            }).toList(),
+          ] else ...[
+            // No categories message
+            Container(
+              padding: EdgeInsets.all(32),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.category,
+                    size: 48,
+                    color: Colors.grey[400],
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    isOwnProfile ? 'No categories yet' : 'No categories shared',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryCard(String category, List<dynamic> postsInCategory) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () {
+        // Handle category tap
+        final user = AppUser(
+          uid: userProfile['uid'] ?? '',
+          name: userProfile['name'] ?? '',
+          username: userProfile['username'] ?? '',
+          email: userProfile['email'] ?? '',
+          profileImageUrl: userProfile['profileImageUrl'],
+          categories: List<String>.from(userProfile['categories'] ?? []),
+        );
+        onPortfolioTap(user, category, postsInCategory.cast<Map<String, dynamic>>());
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha((0.85 * 255).toInt()),
           borderRadius: BorderRadius.circular(20),
-          onTap: () => onPortfolioTap(AppUser.fromMap(userProfile), category, postsInCategory.cast<Map<String, dynamic>>()),
-          child: Container(
+          border: Border.all(color: Color(0xFFE0E0E0), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha((0.08 * 255).toInt()),
+              blurRadius: 18,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ListTile(
+          leading: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withAlpha((0.85 * 255).toInt()),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Color(0xFFE0E0E0), width: 1.2),
+              shape: BoxShape.circle,
+              color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withAlpha((0.08 * 255).toInt()),
-                  blurRadius: 18,
-                  offset: Offset(0, 8),
+                  color: Colors.black.withAlpha((0.10 * 255).toInt()),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
                 ),
               ],
             ),
-            child: ListTile(
-              leading: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha((0.10 * 255).toInt()),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(8),
-                child: Icon(Icons.folder_special_rounded, color: Color(0xFF4FC3F7), size: 28),
-              ),
-              title: Text(
-                category,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: Color(0xFF263238),
-                  letterSpacing: 0.5,
-                ),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFB0BEC5), size: 20),
+            padding: const EdgeInsets.all(8),
+            child: Icon(Icons.category, color: Color(0xFF4FC3F7), size: 28),
+          ),
+          title: Text(
+            category,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: Color(0xFF263238),
+              letterSpacing: 0.5,
             ),
           ),
-        );
-      },
+          subtitle: Text(
+            '${postsInCategory.length} ${postsInCategory.length == 1 ? 'post' : 'posts'}',
+            style: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF718096),
+            ),
+          ),
+          trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFFB0BEC5), size: 20),
+        ),
+      ),
     );
   }
 }
@@ -2246,23 +2360,103 @@ class PublicPortfolioCategoryList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (portfolios.isEmpty) {
-      return Center(child: Text('No portfolios yet'));
-    }
-    
-    return ListView.separated(
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final isOwnProfile = currentUserId == userProfile['uid'];
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-      itemCount: portfolios.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 18),
-      itemBuilder: (context, index) {
-        final portfolio = portfolios[index];
-        final portfolioName = portfolio is Map ? (portfolio['profilename'] ?? portfolio['category'] ?? 'Portfolio') : portfolio.profilename;
-        final category = portfolio is Map ? (portfolio['category'] ?? '') : portfolio.category;
-        final portfolioId = portfolio is Map ? (portfolio['_id'] ?? portfolio['id'] ?? '') : portfolio.id;
-        final profileImageUrl = portfolio is Map ? portfolio['profileImageUrl'] : portfolio.profileImageUrl;
-        final postsInCategory = allPosts.where((p) => p['category'] == category).toList();
-        
-        return InkWell(
+      child: Column(
+        children: [
+          // Music Portfolio Section (Always show at top)
+          Container(
+            margin: EdgeInsets.only(bottom: 24),
+            child: MusicPortfolioWidget(
+              userId: userProfile['uid'] ?? '',
+              isOwnProfile: isOwnProfile,
+            ),
+          ),
+
+          // Regular Portfolios Section
+          if (portfolios.isNotEmpty) ...[
+            // Section Header
+            Container(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.folder_special,
+                    color: Color(0xFF6C63FF),
+                    size: 20,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Creative Portfolios',
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF2D3748),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Portfolios List
+            ...portfolios.asMap().entries.map((entry) {
+              final index = entry.key;
+              final portfolio = entry.value;
+              return Container(
+                margin: EdgeInsets.only(bottom: 18),
+                child: _buildPortfolioCard(portfolio),
+              );
+            }).toList(),
+          ] else ...[
+            // No portfolios message
+            Container(
+              padding: EdgeInsets.all(32),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.folder_open,
+                    size: 48,
+                    color: Colors.grey[400],
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    isOwnProfile ? 'No portfolios yet' : 'No portfolios shared',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (isOwnProfile) ...[
+                    SizedBox(height: 8),
+                    Text(
+                      'Create your first portfolio!',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPortfolioCard(dynamic portfolio) {
+    final portfolioName = portfolio is Map ? (portfolio['profilename'] ?? portfolio['category'] ?? 'Portfolio') : portfolio.profilename;
+    final category = portfolio is Map ? (portfolio['category'] ?? '') : portfolio.category;
+    final portfolioId = portfolio is Map ? (portfolio['_id'] ?? portfolio['id'] ?? '') : portfolio.id;
+    final profileImageUrl = portfolio is Map ? portfolio['profileImageUrl'] : portfolio.profileImageUrl;
+    final postsInCategory = allPosts.where((p) => p['category'] == category).toList();
+
+    return InkWell(
           borderRadius: BorderRadius.circular(20),
           onTap: () => onPortfolioTap(portfolioId ?? ''),
           child: Container(
@@ -2326,8 +2520,6 @@ class PublicPortfolioCategoryList extends StatelessWidget {
             ),
           ),
         );
-      },
-    );
   }
 }
 

@@ -114,7 +114,7 @@ class _UserPostsFeedScreenState extends State<UserPostsFeedScreen> {
                                 color: Colors.black12,
                                 child: Center(child: Icon(Icons.videocam, size: 60)),
                               )
-                            : Container(height: 320, color: Colors.grey[200]),
+                                : Container(height: 320, color: Colors.grey[200]),
                     Padding(
                       padding: const EdgeInsets.all(12.0),
                       child: Row(

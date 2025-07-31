@@ -4,7 +4,8 @@ import '../../widgets/modern_text_field.dart';
 import '../../widgets/modern_card.dart';
 import '../../constants/app_theme.dart';
 import '../../services/user_service.dart';
-import '../../models/user_model.dart';
+import 'profile_screen.dart';
+
 import 'package:cached_network_image/cached_network_image.dart';
 
 class UserSearchScreen extends StatefulWidget {
@@ -14,7 +15,7 @@ class UserSearchScreen extends StatefulWidget {
 
 class _UserSearchScreenState extends State<UserSearchScreen> with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
-  List<AppUser> _searchResults = [];
+  List<dynamic> _searchResults = [];
   bool _isLoading = false;
   bool _hasSearched = false;
   late AnimationController _animationController;
@@ -379,7 +380,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> with TickerProvider
     );
   }
 
-  Widget _buildUserCard(AppUser user, int index) {
+  Widget _buildUserCard(dynamic user, int index) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     
@@ -387,7 +388,14 @@ class _UserSearchScreenState extends State<UserSearchScreen> with TickerProvider
       margin: const EdgeInsets.only(bottom: 16),
       onTap: () {
         // Navigate to user profile
-        // TODO: Implement user profile navigation
+        if (user['uid'] != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PublicProfileScreen(uid: user['uid']),
+            ),
+          );
+        }
       },
       child: Row(
         children: [
@@ -397,18 +405,18 @@ class _UserSearchScreenState extends State<UserSearchScreen> with TickerProvider
             height: 60,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: user.profileImageUrl == null 
-                  ? AppTheme.primaryGradient 
+              gradient: user['profileImageUrl'] == null
+                  ? AppTheme.primaryGradient
                   : null,
               border: Border.all(
                 color: AppTheme.primaryColor.withOpacity(0.3),
                 width: 2,
               ),
             ),
-            child: user.profileImageUrl != null
+            child: user['profileImageUrl'] != null
                 ? ClipOval(
                     child: CachedNetworkImage(
-                      imageUrl: user.profileImageUrl!,
+                      imageUrl: user['profileImageUrl']!,
                       fit: BoxFit.cover,
                       width: 60,
                       height: 60,
@@ -449,24 +457,24 @@ class _UserSearchScreenState extends State<UserSearchScreen> with TickerProvider
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  user.name,
+                  user['name'] ?? 'Unknown User',
                   style: AppTheme.labelLarge.copyWith(
                     color: isDark ? AppTheme.darkTextPrimary : AppTheme.textPrimary,
                   ),
                 ),
-                if (user.username.isNotEmpty) ...[
+                if ((user['username'] ?? '').isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
-                    '@${user.username}',
+                    '@${user['username']}',
                     style: AppTheme.bodySmall.copyWith(
                       color: AppTheme.primaryColor,
                     ),
                   ),
                 ],
-                if (user.categories.isNotEmpty) ...[
+                if ((user['categories'] as List?)?.isNotEmpty == true) ...[
                   const SizedBox(height: 4),
                   Text(
-                    user.categories.take(2).join(', '),
+                    (user['categories'] as List).take(2).join(', '),
                     style: AppTheme.bodySmall.copyWith(
                       color: isDark ? AppTheme.darkTextSecondary : AppTheme.textSecondary,
                     ),

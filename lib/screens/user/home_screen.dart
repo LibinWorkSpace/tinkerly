@@ -7,11 +7,13 @@ import '../../widgets/main_bottom_nav_bar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'search_screen.dart';
 
 import 'portfolio_profile_screen.dart';
 import 'package:http/http.dart' as http;
 import 'package:tinkerly/constants/api_constants.dart';
 import 'dart:convert';
+import 'categories_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -32,9 +34,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Widget> _pages = [
     HomeFeed(),
-    UserSearchScreen(),
+    UserSearchScreen(), // Actual search screen
     Center(child: Text('Add', style: TextStyle(fontSize: 24))),
-    Center(child: Text('Categories', style: TextStyle(fontSize: 24))),
+    CategoriesScreen(),
     ProfileScreen(),
   ];
 
@@ -95,7 +97,10 @@ class _HomeFeedState extends State<HomeFeed> {
       headers: {'Authorization': 'Bearer $idToken'},
     );
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      final List<dynamic> posts = jsonDecode(response.body);
+      // Filter out audio posts - they should only appear in Portfolio section
+      final nonAudioPosts = posts.where((post) => post['mediaType'] != 'audio').toList();
+      return nonAudioPosts;
     } else {
       throw Exception('Failed to fetch feed');
     }
@@ -158,7 +163,10 @@ class _HomeFeedState extends State<HomeFeed> {
             child: IconButton(
               icon: Icon(Icons.search, color: Colors.white, size: 22),
               onPressed: () {
-                // TODO: Implement search
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => UserSearchScreen()),
+                );
               },
             ),
           ),
@@ -1010,368 +1018,10 @@ class _FeedVideoPlayerWithFallbackState extends State<_FeedVideoPlayerWithFallba
   }
 }
 
-class UserSearchScreen extends StatefulWidget {
-  @override
-  State<UserSearchScreen> createState() => _UserSearchScreenState();
-}
 
-class _UserSearchScreenState extends State<UserSearchScreen> {
-  final TextEditingController _controller = TextEditingController();
-  List<dynamic> _results = [];
-  bool _isLoading = false;
-  String _error = '';
 
-  void _search(String query) async {
-    if (query.trim().isEmpty) {
-      setState(() { _results = []; _error = ''; });
-      return;
-    }
-    setState(() { _isLoading = true; _error = ''; });
-    try {
-      final user = await UserService.fetchUserProfile();
-      final idToken = user != null ? null : null; // Not used, but can be for auth
-      final response = await UserService.searchUsers(query);
-      setState(() { _results = response; });
-    } catch (e) {
-      setState(() { _error = 'Failed to search users.'; });
-    } finally {
-      setState(() { _isLoading = false; });
-    }
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final primaryColor = Color(0xFF6C63FF);
-    final secondaryColor = Color(0xFFFF6B9D);
-    
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: Row(
-          children: [
-            Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(Icons.search, color: Colors.black, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'Discover People',
-              style: GoogleFonts.poppins(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-          ],
-        ),
-      ),
-      body: Column(
-        children: [
-          // Search Bar
-          Container(
-            margin: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: Colors.black.withAlpha(76),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(25),
-                  blurRadius: 15,
-                  spreadRadius: 0,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: TextField(
-              controller: _controller,
-              onChanged: _search,
-              style: GoogleFonts.poppins(color: Colors.black),
-              decoration: InputDecoration(
-                hintText: 'Search by name or username...',
-                hintStyle: GoogleFonts.poppins(
-                  color: Colors.black.withAlpha(178),
-                ),
-                prefixIcon: Icon(Icons.search, color: Colors.black.withAlpha(204)),
-                filled: false,
-                contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-                border: InputBorder.none,
-              ),
-            ),
-          ).animate().fadeIn(duration: 400.ms),
-          
-          // Content
-          Expanded(
-            child: _isLoading
-                ? Center(
-                    child: Container(
-                      padding: EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withAlpha(25),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Searching users...',
-                            style: GoogleFonts.poppins(
-                              color: Colors.black,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : _error.isNotEmpty
-                    ? Center(
-                        child: Container(
-                          padding: EdgeInsets.all(24),
-                          margin: EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withAlpha(25),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Colors.red.withAlpha(76),
-                              width: 1,
-                            ),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.error_outline, color: Colors.red, size: 32),
-                              const SizedBox(height: 12),
-                              Text(
-                                _error,
-                                style: GoogleFonts.poppins(
-                                  color: Colors.red,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : !_isLoading && _results.isEmpty && _controller.text.isNotEmpty
-                        ? Center(
-                            child: Container(
-                              padding: EdgeInsets.all(32),
-                              margin: EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withAlpha(25),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: Colors.white.withAlpha(51),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.search_off, color: Colors.black.withAlpha(178), size: 48),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'No users found',
-                                    style: GoogleFonts.poppins(
-                                      color: Colors.black,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Try searching with different keywords',
-                                    style: GoogleFonts.poppins(
-                                      color: Colors.black.withAlpha(178),
-                                      fontSize: 14,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : _results.isNotEmpty
-                            ? ListView.builder(
-                                padding: EdgeInsets.symmetric(horizontal: 16),
-                                itemCount: _results.length,
-                                itemBuilder: (context, index) {
-                                  final user = _results[index];
-                                  return Container(
-                                    margin: EdgeInsets.only(bottom: 12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: Colors.black.withAlpha(51),
-                                        width: 1,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withAlpha(25),
-                                          blurRadius: 10,
-                                          spreadRadius: 0,
-                                          offset: Offset(0, 4),
-                                        ),
-                                      ],
-                                    ),
-                                    child: ListTile(
-                                      contentPadding: EdgeInsets.all(16),
-                                      leading: Container(
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: Colors.black.withAlpha(76),
-                                            width: 2,
-                                          ),
-                                        ),
-                                        child: CircleAvatar(
-                                          backgroundColor: primaryColor.withAlpha(51),
-                                          backgroundImage: user['profileImageUrl'] != null && user['profileImageUrl'].isNotEmpty
-                                              ? NetworkImage(user['profileImageUrl'])
-                                              : null,
-                                          child: (user['profileImageUrl'] == null || user['profileImageUrl'].isEmpty)
-                                              ? Text(
-                                                  user['name'] != null && user['name'].isNotEmpty
-                                                      ? user['name'][0].toUpperCase()
-                                                      : 'N',
-                                                  style: GoogleFonts.poppins(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.black,
-                                                  ),
-                                                )
-                                              : null,
-                                          radius: 24,
-                                        ),
-                                      ),
-                                      title: Text(
-                                        user['name'] ?? '',
-                                        style: GoogleFonts.poppins(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                      subtitle: Text(
-                                        '@${user['username'] ?? ''}',
-                                        style: GoogleFonts.poppins(
-                                          color: Colors.black.withAlpha(178),
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      trailing: Container(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            colors: [primaryColor, secondaryColor],
-                                            begin: Alignment.centerLeft,
-                                            end: Alignment.centerRight,
-                                          ),
-                                          borderRadius: BorderRadius.circular(12),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: primaryColor.withAlpha(76),
-                                              blurRadius: 8,
-                                              spreadRadius: 0,
-                                              offset: Offset(0, 4),
-                                            ),
-                                          ],
-                                        ),
-                                        child: ElevatedButton(
-                                          onPressed: () async {
-                                            if (user['uid'] != null) {
-                                              await Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) => PublicProfileScreen(uid: user['uid']),
-                                                ),
-                                              );
-                                            }
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.transparent,
-                                            foregroundColor: Colors.white,
-                                            elevation: 0,
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                          ),
-                                          child: Text(
-                                            'View',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ).animate().fadeIn(
-                                    duration: 400.ms,
-                                    delay: (index * 100).ms,
-                                  );
-                                },
-                              )
-                            : Center(
-                                child: Container(
-                                  padding: EdgeInsets.all(32),
-                                  margin: EdgeInsets.all(24),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withAlpha(25),
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: Colors.white.withAlpha(51),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.people_outline, color: Colors.black.withAlpha(178), size: 48),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'Discover Amazing People',
-                                        style: GoogleFonts.poppins(
-                                          color: Colors.black,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Search for users by name or username to connect with them',
-                                        style: GoogleFonts.poppins(
-                                          color: Colors.black.withAlpha(178),
-                                          fontSize: 14,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-          ),
-        ],
-      ),
-    );
-  }
-} 
+
 
 class PortfolioProfileModal extends StatelessWidget {
   final Map<String, dynamic> user;
