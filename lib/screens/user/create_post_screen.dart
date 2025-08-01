@@ -945,7 +945,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _buildStepHeader('2. Choose Portfolio', done: _selectedPortfolio != null),
+                                  _buildStepHeader('2. Choose Category', done: _selectedPortfolio != null),
                                   const SizedBox(height: 16),
                                   Container(
                                     decoration: BoxDecoration(
@@ -961,7 +961,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                       child: DropdownButton<Portfolio>(
                                         value: _selectedPortfolio,
                                         hint: Text(
-                                          'Select portfolio',
+                                          'Select category',
                                           style: GoogleFonts.poppins(
                                             color: Colors.black.withOpacity(0.7),
                                           ),
@@ -975,7 +975,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                                 DropdownMenuItem(
                                                   value: null,
                                                   child: Text(
-                                                    'No portfolios available',
+                                                    'No categories available',
                                                     style: GoogleFonts.poppins(color: Colors.grey),
                                                   ),
                                                 )
@@ -984,7 +984,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                                 .map((portfolio) => DropdownMenuItem(
                                                       value: portfolio,
                                                       child: Text(
-                                                        portfolio.profilename,
+                                                        portfolio.category, // Changed from portfolio.profilename to portfolio.category
                                                         style: GoogleFonts.poppins(color: Colors.black),
                                                       ),
                                                     ))
@@ -1020,7 +1020,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                               const SizedBox(width: 8),
                                               Expanded(
                                                 child: Text(
-                                                  'No portfolios found',
+                                                  'No categories found',
                                                   style: GoogleFonts.poppins(
                                                     color: Colors.orange[800],
                                                     fontWeight: FontWeight.w600,
@@ -1031,7 +1031,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                           ),
                                           const SizedBox(height: 8),
                                           Text(
-                                            'Add categories to your profile first to create portfolios, then refresh this page.',
+                                            'Add categories to your profile first, then refresh this page to see them here.',
                                             style: GoogleFonts.poppins(
                                               color: Colors.orange[700],
                                               fontSize: 12,

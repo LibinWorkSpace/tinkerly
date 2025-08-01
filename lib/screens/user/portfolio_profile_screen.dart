@@ -4,7 +4,7 @@ import '../../services/portfolio_service.dart';
 import '../../models/product_model.dart';
 import '../../services/product_service.dart';
 import '../../widgets/main_bottom_nav_bar.dart';
-import '../../widgets/audio_player_widget.dart';
+import '../../widgets/enhanced_music_player_widget.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'edit_portfolio_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -107,6 +107,16 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
     } finally {
       setState(() { _isFollowLoading = false; });
     }
+  }
+
+  void _onNavTap(int index) {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    Future.delayed(Duration.zero, () {
+      if (context.mounted) {
+        // Navigate to home and switch to the selected tab
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    });
   }
 
   @override
@@ -238,7 +248,9 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         _buildStatColumn("Posts", posts.length.toString()),
-                        _buildStatColumn("Followers", followers.length.toString()),
+                        // Only show follower count for portfolio owner
+                        if (_isCurrentUserOwner())
+                          _buildStatColumn("Followers", followers.length.toString()),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -398,7 +410,7 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
           ),
         ),
       ),
-      bottomNavigationBar: MainBottomNavBar(currentIndex: 4, onTap: (i) {}),
+      bottomNavigationBar: MainBottomNavBar(currentIndex: 4, onTap: _onNavTap),
     );
   }
 
@@ -467,36 +479,14 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
         return GestureDetector(
           onTap: () {
             if (post['mediaType'] == 'audio') {
-              // Show audio player dialog
-              showDialog(
+              // Show enhanced audio player dialog
+              showModalBottomSheet(
                 context: context,
-                builder: (context) => Dialog(
-                  backgroundColor: Colors.transparent,
-                  child: Container(
-                    padding: EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          post['description'] ?? 'Audio Track',
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 20),
-                        AudioPlayerWidget(
-                          audioUrl: post['url'],
-                          title: post['description'] ?? 'Audio Track',
-                          height: 200,
-                        ),
-                      ],
-                    ),
-                  ),
+                backgroundColor: Colors.transparent,
+                isScrollControlled: true,
+                builder: (context) => EnhancedMusicPlayerWidget(
+                  track: post,
+                  onClose: () => Navigator.pop(context),
                 ),
               );
             }

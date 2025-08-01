@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'profile_screen.dart';
 import 'package:tinkerly/screens/user/create_post_screen.dart'; // Add this import
 import 'package:tinkerly/services/user_service.dart';
 import 'package:video_player/video_player.dart';
 import '../../widgets/main_bottom_nav_bar.dart';
+import '../../widgets/mini_audio_player.dart';
+import '../../services/audio_player_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -52,9 +55,36 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Color(0xFFFAFAFA), // Light gray-white background
-      body: Container(
-        color: Color(0xFFFAFAFA),
-        child: _pages[_selectedIndex],
+      body: Stack(
+        children: [
+          Container(
+            color: Color(0xFFFAFAFA),
+            child: _pages[_selectedIndex],
+          ),
+          // Mini audio player overlay
+          Positioned(
+            bottom: 80, // Above bottom navigation
+            left: 0,
+            right: 0,
+            child: Consumer<AudioPlayerService>(
+              builder: (context, audioService, child) {
+                if (!audioService.hasCurrentTrack) {
+                  return SizedBox.shrink();
+                }
+                return MiniAudioPlayer(
+                  onTap: () {
+                    showModalBottomSheet(
+                      context: context,
+                      backgroundColor: Colors.transparent,
+                      isScrollControlled: true,
+                      builder: (context) => ExpandedAudioPlayer(),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: MainBottomNavBar(
         currentIndex: _selectedIndex,

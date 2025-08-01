@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,6 +7,7 @@ import 'screens/auth/register_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/user/home_screen.dart';
 import 'screens/auth/splash_screen.dart';
+import 'services/audio_player_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,15 +19,18 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Tinkerly',
-      theme: ThemeData(),
-      home: const AuthGate(),
-      routes: {
-        '/register': (context) => const RegisterScreen(),
-        '/login': (context) => const LoginScreen(),
-        // Add other routes as needed
-      },
+    return ChangeNotifierProvider(
+      create: (context) => AudioPlayerService(),
+      child: MaterialApp(
+        title: 'Tinkerly',
+        theme: ThemeData(),
+        home: const AuthGate(),
+        routes: {
+          '/register': (context) => const RegisterScreen(),
+          '/login': (context) => const LoginScreen(),
+          // Add other routes as needed
+        },
+      ),
     );
   }
 }

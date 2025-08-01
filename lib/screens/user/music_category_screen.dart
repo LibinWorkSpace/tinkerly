@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../constants/api_constants.dart';
-import '../../widgets/music_player_widget.dart';
+import '../../widgets/enhanced_music_player_widget.dart';
 
 class MusicCategoryScreen extends StatefulWidget {
   const MusicCategoryScreen({Key? key}) : super(key: key);
@@ -278,7 +278,7 @@ class _MusicCategoryScreenState extends State<MusicCategoryScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => MusicPlayerWidget(
+      builder: (context) => EnhancedMusicPlayerWidget(
         track: track,
         onClose: () {
           setState(() {

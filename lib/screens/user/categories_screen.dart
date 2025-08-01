@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'music_category_screen.dart';
+import 'category_feed_screen.dart';
 
 class CategoriesScreen extends StatelessWidget {
   const CategoriesScreen({Key? key}) : super(key: key);
@@ -67,45 +68,85 @@ class CategoriesScreen extends StatelessWidget {
                       'Art & Design',
                       Icons.palette,
                       [Color(0xFFFF6B9D), Color(0xFFC44569)],
-                      () {
-                        // TODO: Navigate to Art category
-                      },
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CategoryFeedScreen(
+                            category: 'Digital Art',
+                            primaryColor: Color(0xFFFF6B9D),
+                            secondaryColor: Color(0xFFC44569),
+                            icon: Icons.palette,
+                          ),
+                        ),
+                      ),
                     ),
                     _buildCategoryCard(
                       context,
                       'Photography',
                       Icons.camera_alt,
                       [Color(0xFF6C63FF), Color(0xFF5A52FF)],
-                      () {
-                        // TODO: Navigate to Photography category
-                      },
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CategoryFeedScreen(
+                            category: 'Photography',
+                            primaryColor: Color(0xFF6C63FF),
+                            secondaryColor: Color(0xFF5A52FF),
+                            icon: Icons.camera_alt,
+                          ),
+                        ),
+                      ),
                     ),
                     _buildCategoryCard(
                       context,
                       'Videos',
                       Icons.videocam,
                       [Color(0xFFFF9500), Color(0xFFFF6B35)],
-                      () {
-                        // TODO: Navigate to Videos category
-                      },
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CategoryFeedScreen(
+                            category: 'Videos',
+                            primaryColor: Color(0xFFFF9500),
+                            secondaryColor: Color(0xFFFF6B35),
+                            icon: Icons.videocam,
+                          ),
+                        ),
+                      ),
                     ),
                     _buildCategoryCard(
                       context,
                       'Fashion',
                       Icons.checkroom,
                       [Color(0xFFE056FD), Color(0xFFB721FF)],
-                      () {
-                        // TODO: Navigate to Fashion category
-                      },
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CategoryFeedScreen(
+                            category: 'Fashion',
+                            primaryColor: Color(0xFFE056FD),
+                            secondaryColor: Color(0xFFB721FF),
+                            icon: Icons.checkroom,
+                          ),
+                        ),
+                      ),
                     ),
                     _buildCategoryCard(
                       context,
                       'Technology',
                       Icons.computer,
                       [Color(0xFF00D4AA), Color(0xFF00A693)],
-                      () {
-                        // TODO: Navigate to Technology category
-                      },
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CategoryFeedScreen(
+                            category: 'Programming',
+                            primaryColor: Color(0xFF00D4AA),
+                            secondaryColor: Color(0xFF00A693),
+                            icon: Icons.computer,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),

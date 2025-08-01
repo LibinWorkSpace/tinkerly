@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 import 'dart:convert';
 import '../constants/api_constants.dart';
-import '../widgets/music_player_widget.dart';
+import '../widgets/enhanced_music_player_widget.dart';
+import '../services/audio_player_service.dart';
 
 class MusicPortfolioWidget extends StatefulWidget {
   final String userId;
@@ -325,28 +327,37 @@ class _MusicPortfolioWidgetState extends State<MusicPortfolioWidget> {
           ),
           
           // Play button
-          GestureDetector(
-            onTap: () {
-              setState(() {
-                _currentPlayingId = isPlaying ? null : track['_id'];
-              });
-              
-              if (!isPlaying) {
-                _showMusicPlayer(track);
-              }
+          Consumer<AudioPlayerService>(
+            builder: (context, audioService, child) {
+              final isCurrentTrack = audioService.isCurrentTrack(track['url']);
+              final isTrackPlaying = audioService.isTrackPlaying(track['url']);
+
+              return GestureDetector(
+                onTap: () {
+                  if (isCurrentTrack) {
+                    audioService.togglePlayPause();
+                  } else {
+                    audioService.playTrack(
+                      track['url'],
+                      title: track['description'] ?? 'Audio Track',
+                    );
+                    _showMusicPlayer(track);
+                  }
+                },
+                child: Container(
+                  padding: EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Color(0xFF1DB954),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    isTrackPlaying ? Icons.pause : Icons.play_arrow,
+                    color: Colors.white,
+                    size: 14,
+                  ),
+                ),
+              );
             },
-            child: Container(
-              padding: EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: Color(0xFF1DB954),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                isPlaying ? Icons.pause : Icons.play_arrow,
-                color: Colors.white,
-                size: 14,
-              ),
-            ),
           ),
         ],
       ),
@@ -358,7 +369,7 @@ class _MusicPortfolioWidgetState extends State<MusicPortfolioWidget> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (context) => MusicPlayerWidget(
+      builder: (context) => EnhancedMusicPlayerWidget(
         track: track,
         onClose: () {
           setState(() {
