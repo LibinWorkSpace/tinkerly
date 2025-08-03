@@ -19,6 +19,39 @@ const verifyToken = async (req, res, next) => {
   }
 };
 
+// Test endpoint to check Twilio configuration
+router.get('/test-twilio', (req, res) => {
+  const hasAccountSid = !!process.env.TWILIO_ACCOUNT_SID;
+  const hasAuthToken = !!process.env.TWILIO_AUTH_TOKEN;
+  const hasServiceSid = !!process.env.TWILIO_SERVICE_SID;
+
+  res.json({
+    twilioConfigured: hasAccountSid && hasAuthToken && hasServiceSid,
+    accountSid: hasAccountSid ? 'Set' : 'Missing',
+    authToken: hasAuthToken ? 'Set' : 'Missing',
+    serviceSid: hasServiceSid ? 'Set' : 'Missing',
+    accountSidLength: process.env.TWILIO_ACCOUNT_SID?.length || 0,
+    serviceSidLength: process.env.TWILIO_SERVICE_SID?.length || 0
+  });
+});
+
+// Check user's phone verification status
+router.get('/phone-status', verifyToken, async (req, res) => {
+  try {
+    const User = require('../models/user.model');
+    const user = await User.findOne({ uid: req.user.uid });
+
+    res.json({
+      hasPhone: !!user?.phone,
+      phone: user?.phone,
+      isPhoneVerified: user?.isPhoneVerified || false,
+      userId: req.user.uid
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Public OTP endpoints for registration
 router.post('/send-otp', otpController.sendOtp);
 router.post('/verify-otp', otpController.verifyOtp);

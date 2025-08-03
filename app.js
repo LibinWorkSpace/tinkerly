@@ -4,16 +4,32 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const admin = require('./firebase');
 const { parser, cloudinary } = require('./cloudinary');
-const Post = require('./models/Post'); // Add this after other model imports
-const User = require('./models/user.model'); // Add User model
+const Post = require('./models/Post');
+const User = require('./models/user.model');
+const Otp = require('./models/otp.model');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const Portfolio = require('./models/portfolio');
 
-// In-memory OTP store: { email: { otp, expires } }
-const otpStore = {};
+// Import security middleware
+const { securityHeaders, corsOptions, requestLogger, requestSizeLimiter } = require('./middleware/security');
+const { apiLimiter, authLimiter, otpLimiter, passwordResetLimiter } = require('./middleware/rateLimiter');
+const {
+  sanitizeInput,
+  validateEmail,
+  validatePassword,
+  validateOtp,
+  validateUsername,
+  validatePortfolioName,
+  checkEmailUnique,
+  checkUsernameUnique,
+  checkPortfolioNameUnique,
+  createValidationMiddleware,
+  createAsyncValidationMiddleware
+} = require('./middleware/validation');
 
-// In-memory OTP store for registration: { email: { otp, expires } }
+// Deprecated: In-memory OTP stores (will be removed)
+const otpStore = {};
 const registrationOtpStore = {};
 
 // Configure nodemailer (use your SMTP credentials)
@@ -26,9 +42,24 @@ const transporter = nodemailer.createTransport({
 });
 
 const app = express();
-app.use(cors());
-app.use(express.json({ limit: '100mb' }));
+
+// Apply security middleware
+app.use(securityHeaders);
+app.use(cors(corsOptions));
+app.use(requestLogger);
+// Skip request size limiter for upload endpoints
+app.use((req, res, next) => {
+  if (req.path === '/upload' || req.path.startsWith('/posts')) {
+    return next(); // Skip size limiter for upload routes
+  }
+  return requestSizeLimiter(req, res, next);
+});
+app.use(sanitizeInput);
+app.use(express.json({ limit: '100mb' })); // Increased for video uploads
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// Apply general rate limiting
+app.use('/api/', apiLimiter);
 
 // Import OTP routes
 const otpRoutes = require('./routes/otp.routes');
@@ -57,7 +88,7 @@ async function sendSms(phone, message) {
 }
 
 // Update send OTP endpoint to support email or phone
-app.post('/auth/send-otp', async (req, res) => {
+app.post('/auth/send-otp', passwordResetLimiter, async (req, res) => {
   const { email, method } = req.body;
   let user;
   if (method === 'phone') {
@@ -94,9 +125,13 @@ app.post('/auth/send-otp', async (req, res) => {
   }
 });
 
-app.post('/auth/reset-password', async (req, res) => {
+app.post('/auth/reset-password', authLimiter, createValidationMiddleware({
+  email: validateEmail,
+  otp: validateOtp,
+  newPassword: validatePassword
+}), async (req, res) => {
   const { email, otp, newPassword } = req.body;
-  if (!email || !otp || !newPassword) return res.status(400).json({ error: 'Missing fields' });
+
   const record = otpStore[email];
   if (!record || record.otp !== otp || Date.now() > record.expires) {
     return res.status(400).json({ error: 'Invalid or expired OTP' });
@@ -113,7 +148,7 @@ app.post('/auth/reset-password', async (req, res) => {
 });
 
 // Send registration OTP endpoint
-app.post('/auth/send-registration-otp', async (req, res) => {
+app.post('/auth/send-registration-otp', otpLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email || !email.includes('@')) return res.status(400).json({ error: 'Invalid email' });
   const user = await User.findOne({ email });
@@ -155,8 +190,80 @@ app.get('/user/exists', async (req, res) => {
   res.json({ exists: !!user });
 });
 
+// Public endpoint to check if username exists
+app.get('/user/username-exists', async (req, res) => {
+  const { username } = req.query;
+  if (!username || typeof username !== 'string') {
+    return res.status(400).json({ exists: false });
+  }
+  const user = await User.findOne({ username });
+  res.json({ exists: !!user });
+});
+
+// Public endpoint to check if phone number exists
+app.get('/user/phone-exists', async (req, res) => {
+  const { phone } = req.query;
+  if (!phone || typeof phone !== 'string') {
+    return res.status(400).json({ exists: false });
+  }
+
+  // Normalize phone number for consistent checking
+  const normalizePhoneNumber = (phone) => {
+    if (!phone) return phone;
+    let normalized = phone.replace(/[^\d+]/g, '');
+    if (!normalized.startsWith('+')) {
+      normalized = '+' + normalized;
+    }
+    return normalized;
+  };
+
+  const normalizedPhone = normalizePhoneNumber(phone);
+  const user = await User.findOne({ phone: normalizedPhone });
+  res.json({ exists: !!user });
+});
+
+// Public endpoint to check if portfolio name exists globally
+app.get('/portfolio/name-exists', async (req, res) => {
+  const { profilename } = req.query;
+  if (!profilename || typeof profilename !== 'string') {
+    return res.status(400).json({ exists: false });
+  }
+  const Portfolio = require('./models/portfolio');
+  const portfolio = await Portfolio.findOne({ profilename });
+  res.json({ exists: !!portfolio });
+});
+
+// Public endpoint to check if portfolio name exists for a specific user
+app.get('/portfolio/name-exists-for-user', async (req, res) => {
+  const { profilename, userId } = req.query;
+  if (!profilename || typeof profilename !== 'string' || !userId) {
+    return res.status(400).json({ exists: false });
+  }
+  const Portfolio = require('./models/portfolio');
+  const portfolio = await Portfolio.findOne({ profilename, userId });
+  res.json({ exists: !!portfolio });
+});
+
 // OTP routes
 app.use('/otp', otpRoutes);
+
+// Firebase token verification function
+const verifyToken = async (req, res, next) => {
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    const idToken = req.headers.authorization.split('Bearer ')[1];
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      req.user = decodedToken;
+      next();
+    } catch (err) {
+      console.error('Firebase token verification failed:', err);
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  } else {
+    console.error('No token provided in Authorization header');
+    return res.status(401).json({ error: 'No token provided' });
+  }
+};
 
 // Firebase Auth middleware (keep this after the public routes)
 app.use(async (req, res, next) => {
@@ -185,6 +292,22 @@ app.use('/products', productRoutes);
 // Upload endpoint
 app.post('/upload', parser.single('file'), async (req, res) => {
   try {
+    console.log('Upload request received');
+    console.log('Content-Length:', req.get('Content-Length'));
+    console.log('Content-Type:', req.get('Content-Type'));
+
+    if (!req.file) {
+      console.error('No file received in upload request');
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    console.log('File details:', {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      path: req.file.path
+    });
+
     const file = req.file;
     const media = new Media({
       userId: req.user.uid,
@@ -195,9 +318,13 @@ app.post('/upload', parser.single('file'), async (req, res) => {
       public_id: file.filename,
     });
     await media.save();
+    console.log('File uploaded successfully:', file.path);
     res.json(media);
   } catch (err) {
-    console.error('Upload error:', err); // Improved error logging
+    console.error('Upload error:', err);
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: 'File too large. Maximum size is 100MB.' });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -218,36 +345,62 @@ app.delete('/media/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// Create or update user profile
-app.post('/user', async (req, res) => {
+// Create or update user profile with uniqueness validation
+app.post('/user', verifyToken, createAsyncValidationMiddleware({
+  email: {
+    syncValidator: validateEmail,
+    asyncCheck: checkEmailUnique,
+    uniqueError: 'Email is already registered'
+  },
+  username: {
+    syncValidator: validateUsername,
+    asyncCheck: checkUsernameUnique,
+    uniqueError: 'Username is already taken'
+  }
+}), async (req, res) => {
   try {
     // Log incoming request for debugging
-    console.log('POST /user body:', req.body);
-    console.log('POST /user req.user:', req.user);
-    const { name, email, phone, profileImageUrl, categories, username, bio } = req.body;
+    console.log('=== POST /user REQUEST ===');
+    console.log('Body:', req.body);
+    console.log('User from token:', req.user);
+    console.log('Headers:', req.headers);
+    const { name, email, phone, profileImageUrl, categories, username, bio, isPhoneVerified } = req.body;
     const uid = req.user && req.user.uid;
     if (!uid) {
       console.error('POST /user error: Missing uid in req.user');
       return res.status(400).json({ error: 'Missing uid in token' });
     }
-    // Check if a user with this email already exists
-    let user = await User.findOne({ email });
+
+    // Check if user already exists by UID (for updates)
+    let user = await User.findOne({ uid });
     if (user) {
       // User exists, return existing user data (do not update)
       return res.status(200).json(user);
     }
+
     // Only include fields that are not null or undefined
     const newUserFields = { uid, name, email, profileImageUrl, categories, username, bio };
     if (phone !== undefined && phone !== null && phone !== '') {
       newUserFields.phone = phone;
     }
+    if (isPhoneVerified !== undefined && isPhoneVerified !== null) {
+      newUserFields.isPhoneVerified = isPhoneVerified;
+    }
+    console.log('Creating new user with fields:', newUserFields);
     user = new User(newUserFields);
     await user.save();
     res.status(201).json(user);
   } catch (err) {
     if (err.name === 'MongoServerError' && err.code === 11000) {
       console.error('POST /user duplicate key error:', err);
-      return res.status(409).json({ error: 'Duplicate key error', details: err.message });
+      // Parse the duplicate key error to provide specific feedback
+      let errorMessage = 'Duplicate data detected';
+      if (err.message.includes('email')) {
+        errorMessage = 'Email is already registered';
+      } else if (err.message.includes('username')) {
+        errorMessage = 'Username is already taken';
+      }
+      return res.status(409).json({ error: errorMessage, details: err.message });
     }
     console.error('POST /user error:', err);
     res.status(500).json({ error: 'Failed to save user profile', details: err.message });

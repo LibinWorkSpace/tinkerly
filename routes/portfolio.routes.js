@@ -4,6 +4,12 @@ const mongoose = require('mongoose');
 const Portfolio = require('../models/portfolio');
 const Post = require('../models/Post');
 const Product = require('../models/product');
+const {
+  validatePortfolioName,
+  checkPortfolioNameUnique,
+  checkPortfolioNameUniqueForUser,
+  createAsyncValidationMiddleware
+} = require('../middleware/validation');
 
 // Get all portfolios for a user
 router.get('/user/:userId', async (req, res) => {
@@ -29,14 +35,33 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create a new portfolio
+// Create a new portfolio with uniqueness validation
 router.post('/', async (req, res) => {
   try {
+    const { profilename, userId } = req.body;
+
+    // Validate portfolio name format
+    const nameValidation = validatePortfolioName(profilename);
+    if (!nameValidation.isValid) {
+      return res.status(400).json({ error: nameValidation.error });
+    }
+
+    // Check global uniqueness
+    const isGloballyUnique = await checkPortfolioNameUnique(profilename);
+    if (!isGloballyUnique) {
+      return res.status(409).json({ error: 'Portfolio name is already taken by another user' });
+    }
+
+    // Check uniqueness for this user
+    const isUniqueForUser = await checkPortfolioNameUniqueForUser(profilename, userId);
+    if (!isUniqueForUser) {
+      return res.status(409).json({ error: 'You already have a portfolio with this name' });
+    }
     console.log('Creating portfolio with data:', req.body);
     const portfolio = new Portfolio(req.body);
     await portfolio.save();
     console.log('Portfolio created successfully:', portfolio._id);
-    
+
     // Also update the user's portfolioIds array
     const User = require('../models/user.model');
     try {
@@ -49,10 +74,20 @@ router.post('/', async (req, res) => {
       console.error('Failed to update user portfolioIds:', userUpdateErr);
       // Don't fail the portfolio creation if user update fails
     }
-    
+
     res.status(201).json(portfolio);
   } catch (err) {
     console.error('Error creating portfolio:', err);
+    if (err.name === 'MongoServerError' && err.code === 11000) {
+      // Parse the duplicate key error to provide specific feedback
+      let errorMessage = 'Portfolio name is already taken';
+      if (err.message.includes('userId_1_profilename_1')) {
+        errorMessage = 'You already have a portfolio with this name';
+      } else if (err.message.includes('profilename_1')) {
+        errorMessage = 'Portfolio name is already taken by another user';
+      }
+      return res.status(409).json({ error: errorMessage, details: err.message });
+    }
     res.status(500).json({ error: 'Failed to create portfolio', details: err.message });
   }
 });

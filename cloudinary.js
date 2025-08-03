@@ -17,6 +17,12 @@ const storage = new CloudinaryStorage({
   },
 });
 
-const parser = multer({ storage: storage });
+const parser = multer({
+  storage: storage,
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB limit for video files
+    fieldSize: 100 * 1024 * 1024, // 100MB limit for field values
+  }
+});
 
 module.exports = { cloudinary, parser }; 
