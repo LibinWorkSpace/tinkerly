@@ -139,6 +139,29 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
   }
 
+  bool _isFileSizeValid(int fileSizeBytes) {
+    const maxSizeBytes = 100 * 1024 * 1024; // 100MB
+    return fileSizeBytes <= maxSizeBytes;
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  void _showFileSizeError(int fileSizeBytes) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'File too large (${_formatFileSize(fileSizeBytes)}). Maximum size is 100MB.',
+        ),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 4),
+      ),
+    );
+  }
+
   Future<void> _pickMedia() async {
     final picker = ImagePicker();
     final picked = await showModalBottomSheet<dynamic>(
@@ -327,6 +350,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         isVideo = mimeType.startsWith('video/');
         debugPrint('Picked file: ${picked.path}, mimeType: $mimeType, isVideo: $isVideo');
         final bytes = await picked.readAsBytes();
+
+        // Check file size
+        if (!_isFileSizeValid(bytes.length)) {
+          _showFileSizeError(bytes.length);
+          return;
+        }
         if (isVideo) {
           // For web video, create a blob URL
           final blob = html.Blob([bytes], 'video/mp4');
@@ -361,6 +390,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         final path = picked.path.toLowerCase();
         isVideo = path.endsWith('.mp4') || path.endsWith('.mov') || path.endsWith('.webm');
         debugPrint('Picked file: ${picked.path}, isVideo: $isVideo');
+
+        // Check file size for non-web platforms
+        final file = File(picked.path);
+        final fileSize = await file.length();
+        if (!_isFileSizeValid(fileSize)) {
+          _showFileSizeError(fileSize);
+          return;
+        }
         if (isVideo) {
           setState(() {
             _mediaFile = File(picked.path);
@@ -393,6 +430,19 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       // Handle audio file selection
       final file = picked.files.first;
       if (file.bytes != null || file.path != null) {
+        // Check file size for audio files
+        int fileSize = 0;
+        if (kIsWeb && file.bytes != null) {
+          fileSize = file.bytes!.length;
+        } else if (!kIsWeb && file.path != null) {
+          final audioFile = File(file.path!);
+          fileSize = await audioFile.length();
+        }
+
+        if (fileSize > 0 && !_isFileSizeValid(fileSize)) {
+          _showFileSizeError(fileSize);
+          return;
+        }
         setState(() {
           _audioFileName = file.name;
           _mediaType = 'audio';

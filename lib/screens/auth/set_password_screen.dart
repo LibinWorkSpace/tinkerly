@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/user_service.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/password_strength_indicator.dart';
+import '../../utils/password_validator.dart';
 
 class SetPasswordScreen extends StatefulWidget {
   const SetPasswordScreen({super.key});
@@ -16,6 +18,15 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Add listener to update password strength indicator in real-time
+    _passwordController.addListener(() {
+      setState(() {});
+    });
+  }
 
   @override
   void dispose() {
@@ -75,13 +86,15 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                 label: 'New Password',
                 icon: Icons.lock,
                 isPassword: true,
-                validator: (value) {
-                  if (value == null || value.length < 6) {
-                    return 'Password must be at least 6 characters';
-                  }
-                  return null;
-                },
+                validator: PasswordValidator.validatePassword,
               ),
+
+              // Password Strength Indicator
+              PasswordStrengthIndicator(
+                password: _passwordController.text,
+                isDark: Theme.of(context).brightness == Brightness.dark,
+              ),
+
               const SizedBox(height: 16),
               CustomTextField(
                 controller: _confirmController,
@@ -99,6 +112,47 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               CustomButton(
                 text: _isLoading ? 'Setting...' : 'Set Password',
                 onPressed: _isLoading ? null : _setPassword,
+              ),
+
+              const SizedBox(height: 24),
+
+              // Security Tips
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.security, color: Colors.blue, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Password Security Tips',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '• Use a unique password you don\'t use elsewhere\n'
+                      '• Include uppercase, lowercase, numbers, and symbols\n'
+                      '• Avoid personal information or common words\n'
+                      '• Consider using a password manager',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

@@ -22,10 +22,12 @@ class EditPortfolioScreen extends StatefulWidget {
 class _EditPortfolioScreenState extends State<EditPortfolioScreen> {
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
+  final FocusNode _nameFocusNode = FocusNode();
   String? _profileImageUrl;
   File? _imageFile;
   Uint8List? _webImageBytes;
   bool _isLoading = false;
+  String? _nameErrorText;
 
   @override
   void initState() {
@@ -50,12 +52,75 @@ class _EditPortfolioScreenState extends State<EditPortfolioScreen> {
     _nameController = TextEditingController(text: widget.portfolio.profilename);
     _descriptionController = TextEditingController(text: widget.portfolio.description);
     _profileImageUrl = widget.portfolio.profileImageUrl;
+
+    // Add validation listener for portfolio name
+    _nameFocusNode.addListener(() async {
+      if (!_nameFocusNode.hasFocus) {
+        final name = _nameController.text.trim();
+        final originalName = widget.portfolio.profilename;
+
+        // Skip validation if name hasn't changed
+        if (name == originalName) {
+          setState(() {
+            _nameErrorText = null;
+          });
+          return;
+        }
+
+        if (name.isEmpty || name.length < 3) {
+          setState(() {
+            _nameErrorText = 'Portfolio name must be at least 3 characters.';
+          });
+          return;
+        }
+
+        if (name.length > 50) {
+          setState(() {
+            _nameErrorText = 'Portfolio name must be less than 50 characters.';
+          });
+          return;
+        }
+
+        if (!RegExp(r'^[a-zA-Z0-9_\s-]+$').hasMatch(name)) {
+          setState(() {
+            _nameErrorText = 'Portfolio name can only contain letters, numbers, spaces, underscores, and hyphens.';
+          });
+          return;
+        }
+
+        // Check global uniqueness
+        final globalExists = await UserService.checkPortfolioNameExists(name);
+        if (globalExists) {
+          setState(() {
+            _nameErrorText = 'Portfolio name is already taken by another user.';
+          });
+          return;
+        }
+
+        // Check uniqueness for current user
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          final userExists = await UserService.checkPortfolioNameExistsForUser(name, user.uid);
+          if (userExists) {
+            setState(() {
+              _nameErrorText = 'You already have a portfolio with this name.';
+            });
+            return;
+          }
+        }
+
+        setState(() {
+          _nameErrorText = null;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _nameFocusNode.dispose();
     super.dispose();
   }
 
@@ -215,6 +280,17 @@ class _EditPortfolioScreenState extends State<EditPortfolioScreen> {
   }
 
   Future<void> _savePortfolio() async {
+    // Check for validation errors before saving
+    if (_nameErrorText != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_nameErrorText!),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (_nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Portfolio name cannot be empty')),
@@ -256,9 +332,20 @@ class _EditPortfolioScreenState extends State<EditPortfolioScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = 'Failed to update portfolio';
+
+        // Parse specific error messages
+        if (e.toString().contains('Portfolio name is already taken by another user')) {
+          errorMessage = 'Portfolio name is already taken by another user';
+        } else if (e.toString().contains('You already have a portfolio with this name')) {
+          errorMessage = 'You already have a portfolio with this name';
+        } else if (e.toString().contains('409')) {
+          errorMessage = 'Portfolio name is already taken';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to update portfolio: $e'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
           ),
         );
@@ -513,11 +600,17 @@ class _EditPortfolioScreenState extends State<EditPortfolioScreen> {
                               ),
                               child: TextField(
                                 controller: _nameController,
+                                focusNode: _nameFocusNode,
                                 style: GoogleFonts.poppins(color: Colors.white),
                                 decoration: InputDecoration(
                                   hintText: 'Enter portfolio name',
                                   hintStyle: GoogleFonts.poppins(
                                     color: Colors.white.withOpacity(0.6),
+                                  ),
+                                  errorText: _nameErrorText,
+                                  errorStyle: GoogleFonts.poppins(
+                                    color: Colors.red.shade300,
+                                    fontSize: 12,
                                   ),
                                   border: InputBorder.none,
                                   contentPadding: EdgeInsets.symmetric(

@@ -12,6 +12,7 @@ import 'package:multi_select_flutter/multi_select_flutter.dart';
 import '../../services/auth_service.dart';
 import '../../services/user_service.dart';
 import '../../models/user_model.dart';
+import '../../utils/password_validator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -48,7 +49,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   final FocusNode _emailFocusNode = FocusNode();
+  final FocusNode _usernameFocusNode = FocusNode();
+  final FocusNode _phoneFocusNode = FocusNode();
   String? _emailErrorText;
+  String? _usernameErrorText;
+  String? _phoneErrorText;
   bool _isEmailVerified = false;
   TextEditingController _otpController = TextEditingController();
 
@@ -297,11 +302,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
         });
       }
     });
+
+    _usernameFocusNode.addListener(() async {
+      if (!_usernameFocusNode.hasFocus) {
+        final username = _usernameController.text.trim();
+        if (username.isEmpty || username.length < 3) {
+          setState(() {
+            _usernameErrorText = 'Username must be at least 3 characters.';
+          });
+          return;
+        }
+        if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username)) {
+          setState(() {
+            _usernameErrorText = 'Username can only contain letters, numbers, and underscores.';
+          });
+          return;
+        }
+        // Call backend to check if username is already taken
+        final exists = await UserService.checkUsernameExists(username);
+        setState(() {
+          _usernameErrorText = exists ? 'Username is already taken.' : null;
+        });
+      }
+    });
+
+    _phoneFocusNode.addListener(() async {
+      if (!_phoneFocusNode.hasFocus) {
+        final phone = _phoneController.text.trim();
+        if (phone.isEmpty) {
+          setState(() {
+            _phoneErrorText = 'Please enter your phone number';
+          });
+          return;
+        }
+        // Validate E.164 format
+        if (!RegExp(r'^\+\d{10,15}$').hasMatch(phone)) {
+          setState(() {
+            _phoneErrorText = 'Enter phone as +<countrycode><number>';
+          });
+          return;
+        }
+        // Call backend to check if phone number is already registered
+        final exists = await UserService.checkPhoneExists(phone);
+        setState(() {
+          _phoneErrorText = exists ? 'Phone number is already registered.' : null;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _emailFocusNode.dispose();
+    _usernameFocusNode.dispose();
+    _phoneFocusNode.dispose();
     super.dispose();
   }
 
@@ -390,6 +444,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // Refactored registration flow
   void _register() async {
     if (!_formKey.currentState!.validate() || _selectedCategories.isEmpty) return;
+
+    // Check for any validation errors
+    if (_emailErrorText != null || _usernameErrorText != null || _phoneErrorText != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please fix the validation errors before proceeding.')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     // Store form data
@@ -855,9 +918,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     controller: _usernameController,
                                     label: 'Username',
                                     icon: Icons.alternate_email,
-                                    validator: (value) => value!.isEmpty ? 'Enter a username' : null,
+                                    validator: (value) => _usernameErrorText ?? (value!.isEmpty ? 'Enter a username' : null),
                                     fillColor: inputFillColor,
                                     borderColor: inputBorderColor,
+                                    focusNode: _usernameFocusNode,
                                   ).animate().fadeIn(duration: 400.ms, delay: 650.ms),
                                   const SizedBox(height: 16),
                                   // Email
@@ -878,7 +942,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     label: 'Password',
                                     icon: Icons.lock_outline,
                                     isPassword: true,
-                                    validator: (value) => value!.length < 6 ? 'Password must be at least 6 characters' : null,
+                                    validator: PasswordValidator.validatePassword,
                                     fillColor: inputFillColor,
                                     borderColor: inputBorderColor,
                                   ).animate().fadeIn(duration: 400.ms, delay: 750.ms),
@@ -889,18 +953,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     label: 'Phone Number',
                                     icon: Icons.phone_outlined,
                                     keyboardType: TextInputType.phone,
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Please enter your phone number';
-                                      }
-                                      // Require E.164 format
-                                      if (!RegExp(r'^\+\d{10,15}$').hasMatch(value)) {
-                                        return 'Enter phone as +<countrycode><number>'; // e.g. +918590282958
-                                      }
-                                      return null;
-                                    },
+                                    validator: (value) => _phoneErrorText ?? (value!.isEmpty ? 'Please enter your phone number' : (!RegExp(r'^\+\d{10,15}$').hasMatch(value) ? 'Enter phone as +<countrycode><number>' : null)),
                                     fillColor: inputFillColor,
                                     borderColor: inputBorderColor,
+                                    focusNode: _phoneFocusNode,
                                   ).animate().fadeIn(duration: 400.ms, delay: 800.ms),
                                   const SizedBox(height: 8),
                                   Padding(

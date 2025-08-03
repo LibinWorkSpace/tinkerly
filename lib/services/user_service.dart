@@ -461,6 +461,54 @@ class UserService {
     return false;
   }
 
+  // Check if username exists
+  static Future<bool> checkUsernameExists(String username) async {
+    final response = await http.get(
+      Uri.parse('${ApiConstants.baseUrl}/user/username-exists?username=${Uri.encodeComponent(username)}'),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['exists'] == true;
+    }
+    return false;
+  }
+
+  // Check if phone number exists
+  static Future<bool> checkPhoneExists(String phone) async {
+    final response = await http.get(
+      Uri.parse('${ApiConstants.baseUrl}/user/phone-exists?phone=${Uri.encodeComponent(phone)}'),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['exists'] == true;
+    }
+    return false;
+  }
+
+  // Check if portfolio name exists globally
+  static Future<bool> checkPortfolioNameExists(String profilename) async {
+    final response = await http.get(
+      Uri.parse('${ApiConstants.baseUrl}/portfolio/name-exists?profilename=${Uri.encodeComponent(profilename)}'),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['exists'] == true;
+    }
+    return false;
+  }
+
+  // Check if portfolio name exists for current user
+  static Future<bool> checkPortfolioNameExistsForUser(String profilename, String userId) async {
+    final response = await http.get(
+      Uri.parse('${ApiConstants.baseUrl}/portfolio/name-exists-for-user?profilename=${Uri.encodeComponent(profilename)}&userId=${Uri.encodeComponent(userId)}'),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return data['exists'] == true;
+    }
+    return false;
+  }
+
   // Send registration OTP
   static Future<bool> sendRegistrationOtp(String email) async {
     final response = await http.post(
@@ -482,20 +530,31 @@ class UserService {
   }
 
   static Future<bool> sendSmsOtp(String phone, {bool requireAuth = true}) async {
+    print('=== FRONTEND SEND OTP ===');
+    print('Phone: $phone');
+    print('Require Auth: $requireAuth');
+
     String? idToken;
     if (requireAuth) {
       final user = FirebaseAuth.instance.currentUser;
       idToken = await user?.getIdToken();
+      print('User ID: ${user?.uid}');
     }
+
     final headers = {
       'Content-Type': 'application/json',
       if (requireAuth && idToken != null) 'Authorization': 'Bearer $idToken',
     };
+
     final response = await http.post(
       Uri.parse('${ApiConstants.baseUrl}/otp/send-otp'),
       headers: headers,
       body: jsonEncode({'phone': phone}),
     );
+
+    print('Send OTP Response status: ${response.statusCode}');
+    print('Send OTP Response body: ${response.body}');
+
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       return data['result'] == true;
@@ -527,8 +586,16 @@ class UserService {
 
   // Authenticated phone verification for profile
   static Future<bool> verifySmsOtpAuth(String phone, String code) async {
+    print('=== FRONTEND OTP VERIFICATION ===');
+    print('Phone: $phone');
+    print('Code: $code');
+
     final user = FirebaseAuth.instance.currentUser;
     final idToken = await user?.getIdToken();
+
+    print('User ID: ${user?.uid}');
+    print('ID Token length: ${idToken?.length}');
+
     final response = await http.post(
       Uri.parse('${ApiConstants.baseUrl}/otp/verify-otp-auth'),
       headers: {
@@ -537,8 +604,13 @@ class UserService {
       },
       body: jsonEncode({'phone': phone, 'code': code}),
     );
+
+    print('Response status: ${response.statusCode}');
+    print('Response body: ${response.body}');
+
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
+      print('Response data: $data');
       return data['result'] == true;
     }
     return false;

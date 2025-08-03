@@ -26,9 +26,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _usernameController;
   late TextEditingController _bioController;
+  final FocusNode _usernameFocusNode = FocusNode();
   late List<String> _selectedCategories;
   String? _profileImageUrl;
   dynamic _profileImageFileOrBytes;
+  String? _usernameErrorText;
 
   @override
   void initState() {
@@ -39,6 +41,56 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _bioController = TextEditingController(text: widget.user.bio ?? '');
     _selectedCategories = List.from(widget.user.categories);
     _profileImageUrl = widget.user.profileImageUrl;
+
+    // Add validation listener for username
+    _usernameFocusNode.addListener(() async {
+      if (!_usernameFocusNode.hasFocus) {
+        final username = _usernameController.text.trim();
+        final originalUsername = widget.user.name.toLowerCase().replaceAll(' ', '_');
+
+        // Skip validation if username hasn't changed
+        if (username == originalUsername) {
+          setState(() {
+            _usernameErrorText = null;
+          });
+          return;
+        }
+
+        if (username.isEmpty || username.length < 3) {
+          setState(() {
+            _usernameErrorText = 'Username must be at least 3 characters.';
+          });
+          return;
+        }
+
+        if (username.length > 30) {
+          setState(() {
+            _usernameErrorText = 'Username must be less than 30 characters.';
+          });
+          return;
+        }
+
+        if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username)) {
+          setState(() {
+            _usernameErrorText = 'Username can only contain letters, numbers, and underscores.';
+          });
+          return;
+        }
+
+        // Check if username already exists
+        final exists = await UserService.checkUsernameExists(username);
+        if (exists) {
+          setState(() {
+            _usernameErrorText = 'Username is already taken.';
+          });
+          return;
+        }
+
+        setState(() {
+          _usernameErrorText = null;
+        });
+      }
+    });
   }
 
   @override
@@ -46,6 +98,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController.dispose();
     _usernameController.dispose();
     _bioController.dispose();
+    _usernameFocusNode.dispose();
     super.dispose();
   }
 
@@ -265,11 +318,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ),
                           child: TextField(
                             controller: _usernameController,
+                            focusNode: _usernameFocusNode,
                             style: GoogleFonts.poppins(color: Color(0xFF2D3748)),
                             decoration: InputDecoration(
                               labelText: 'Username',
                               labelStyle: GoogleFonts.poppins(
                                 color: Color(0xFF718096),
+                              ),
+                              errorText: _usernameErrorText,
+                              errorStyle: GoogleFonts.poppins(
+                                color: Colors.red.shade600,
+                                fontSize: 12,
                               ),
                               prefixIcon: Icon(Icons.alternate_email, color: Color(0xFF6C63FF)),
                               border: InputBorder.none,
@@ -468,6 +527,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _saveProfile() async {
+    // Check for validation errors before saving
+    if (_usernameErrorText != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_usernameErrorText!),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final username = _usernameController.text.trim();
+    if (username.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Username cannot be empty'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     String? url;
 
     if (_profileImageFileOrBytes != null) {
@@ -486,15 +567,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
     }
 
-    final success = await UserService.saveUserProfile(
-      _nameController.text.trim(),
-      widget.user.email, // still required for registration, ignored for edit
-      _profileImageUrl,
-      _selectedCategories,
-      _usernameController.text.trim(),
-      _bioController.text.trim(),
-      isEdit: true,
-    );
+    bool success = false;
+    try {
+      success = await UserService.saveUserProfile(
+        _nameController.text.trim(),
+        widget.user.email, // still required for registration, ignored for edit
+        _profileImageUrl,
+        _selectedCategories,
+        _usernameController.text.trim(),
+        _bioController.text.trim(),
+        isEdit: true,
+      );
+    } catch (e) {
+      if (mounted) {
+        String errorMessage = 'Failed to update profile';
+
+        // Parse specific error messages
+        if (e.toString().contains('Username is already taken') ||
+            e.toString().contains('username already exists')) {
+          errorMessage = 'Username is already taken';
+        } else if (e.toString().contains('409')) {
+          errorMessage = 'Username is already taken';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
 
     // Auto-create portfolios for new categories
     if (success && mounted) {

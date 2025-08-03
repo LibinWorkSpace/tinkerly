@@ -5,6 +5,7 @@ import '../../widgets/custom_text_field.dart';
 import '../../widgets/custom_button.dart';
 import '../../services/user_service.dart';
 import '../../services/auth_service.dart';
+import '../../utils/password_validator.dart';
 import '../user/home_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -599,7 +600,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                 const SizedBox(height: 12),
                                 TextField(
                                   controller: newPasswordController,
-                                  decoration: const InputDecoration(labelText: 'New Password'),
+                                  decoration: const InputDecoration(
+                                    labelText: 'New Password',
+                                    helperText: 'Must be 8+ chars with uppercase, lowercase, number & symbol',
+                                  ),
                                   obscureText: true,
                                 ),
                               ],
@@ -616,6 +620,14 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   if (otp.isEmpty || newPassword.isEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(content: Text('Please enter OTP and new password.')),
+                                    );
+                                    return;
+                                  }
+                                  // Validate password strength
+                                  final passwordError = PasswordValidator.validatePassword(newPassword);
+                                  if (passwordError != null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(passwordError)),
                                     );
                                     return;
                                   }

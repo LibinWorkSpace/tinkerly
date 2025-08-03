@@ -180,20 +180,41 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   void _editProfile() async {
-    final updated = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => EditProfileScreen(
-          user: AppUser.fromMap(userProfile!),
+    // Fetch the latest user profile before editing
+    try {
+      final latestProfile = await UserService.fetchUserProfile();
+      if (latestProfile == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to load profile data')),
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
+      final updated = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => EditProfileScreen(
+            user: AppUser.fromMap(latestProfile),
+          ),
         ),
-      ),
-    );
-    if (updated == true) {
-      print('Profile updated, refreshing data...'); // Debug log
-      await loadProfileAndPosts();
-      // Wait a bit for portfolios to be created, then refresh
-      await Future.delayed(Duration(milliseconds: 500));
-      await refreshPortfolios();
+      );
+      if (updated == true) {
+        print('Profile updated, refreshing data...'); // Debug log
+        await loadProfileAndPosts();
+        // Wait a bit for portfolios to be created, then refresh
+        await Future.delayed(Duration(milliseconds: 500));
+        await refreshPortfolios();
+      }
+    } catch (e) {
+      print('Error fetching latest profile: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load profile data')),
+        );
+      }
     }
   }
 
