@@ -75,23 +75,32 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         try {
           final profile = await UserService.fetchUserProfile();
           if (profile == null || profile['email'] == null) {
+            // Generate proper username from display name and email
+            final username = UserService.generateUsername(
+              user.displayName ?? 'User',
+              user.email ?? ''
+            );
             await UserService.saveUserProfile(
-              user.displayName ?? '',
+              user.displayName ?? 'User',
               user.email ?? '',
               user.photoURL,
               [],
-              user.displayName ?? '',
+              username,
               null,
             );
           }
         } catch (e) {
           // If fetch fails, create profile
+          final username = UserService.generateUsername(
+            user.displayName ?? 'User',
+            user.email ?? ''
+          );
           await UserService.saveUserProfile(
-            user.displayName ?? '',
+            user.displayName ?? 'User',
             user.email ?? '',
             user.photoURL,
             [],
-            user.displayName ?? '',
+            username,
             null,
           );
         }
@@ -122,12 +131,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         try {
           final profile = await UserService.fetchUserProfile();
           if (profile == null || profile['email'] == null) {
+            // Generate proper username from display name and email
+            final username = UserService.generateUsername(
+              user.displayName ?? 'User',
+              user.email ?? ''
+            );
             await UserService.saveUserProfile(
-              user.displayName ?? '',
+              user.displayName ?? 'User',
               user.email ?? '',
               user.photoURL,
               [],
-              user.displayName ?? '',
+              username,
               null,
             );
           }

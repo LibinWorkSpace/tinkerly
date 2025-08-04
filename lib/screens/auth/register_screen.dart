@@ -565,12 +565,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final user = await _authService.signInWithGoogle();
       if (user != null) {
         try {
+          // Generate proper username from display name and email
+          final username = UserService.generateUsername(
+            user.displayName ?? 'User',
+            user.email ?? ''
+          );
           await UserService.saveUserProfile(
-            user.displayName ?? '',
+            user.displayName ?? 'User',
             user.email ?? '',
             user.photoURL,
             [], // categories
-            user.displayName ?? '', // username
+            username, // generated username
             null, // bio
           );
           ScaffoldMessenger.of(context).showSnackBar(

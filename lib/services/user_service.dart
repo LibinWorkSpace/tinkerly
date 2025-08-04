@@ -7,6 +7,32 @@ import '../models/user_model.dart';
 import '../constants/api_constants.dart';
 
 class UserService {
+  // Generate a valid username from display name
+  static String generateUsername(String displayName, String email) {
+    // Remove special characters and spaces, convert to lowercase
+    String username = displayName
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]'), '')
+        .trim();
+
+    // If username is too short or empty, use email prefix
+    if (username.length < 3) {
+      username = email.split('@')[0].toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    }
+
+    // Ensure minimum length
+    if (username.length < 3) {
+      username = 'user${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+    }
+
+    // Limit to 20 characters
+    if (username.length > 20) {
+      username = username.substring(0, 20);
+    }
+
+    return username;
+  }
+
   // Save or update user profile
   static Future<bool> saveUserProfile(String name, String email, String? profileImageUrl, List<String> categories, String username, String? bio, {String? phone, bool? isPhoneVerified, bool isEdit = false}) async {
     final user = FirebaseAuth.instance.currentUser;

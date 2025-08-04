@@ -12,7 +12,20 @@
           "package_name": "com.example.tinkerly"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "370900926524-5bujic1lscpb1qkqfgseah20vf2uu64j.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.tinkerly",
+            "certificate_hash": "1cec057db5199368c2005918412bb1e95050c5cc"
+          }
+        },
+        {
+          "client_id": "370900926524-a6rdthucsfbq2t0uiv42uh88p4vdp5g6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAAULg7nUS8im-MXQeYsvo3WNX15NDV4us"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "370900926524-a6rdthucsfbq2t0uiv42uh88p4vdp5g6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

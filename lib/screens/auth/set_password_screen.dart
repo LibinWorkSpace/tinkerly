@@ -48,12 +48,16 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       }
       await user.updatePassword(_passwordController.text.trim());
       // Optionally update backend user profile (if you want to track password set)
+      final username = UserService.generateUsername(
+        user.displayName ?? 'User',
+        user.email ?? ''
+      );
       await UserService.saveUserProfile(
-        user.displayName ?? '',
+        user.displayName ?? 'User',
         user.email ?? '',
         user.photoURL,
         [],
-        user.displayName ?? '',
+        username,
         null,
       );
       ScaffoldMessenger.of(context).showSnackBar(
