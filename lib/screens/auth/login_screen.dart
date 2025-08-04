@@ -320,23 +320,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                   ),
                                 ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
                                 const SizedBox(height: 12),
-                                Text(
-                                  'Welcome Back! 👋',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 20,
-                                    color: textColor.withOpacity(0.9),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ).animate().fadeIn(duration: 400.ms, delay: 300.ms),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Sign in to continue your journey',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 14,
-                                    color: textColor.withOpacity(0.7),
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                ).animate().fadeIn(duration: 400.ms, delay: 400.ms),
                               ],
                             ),
                           ),

@@ -768,23 +768,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     ),
                                   ).animate().fadeIn(duration: 400.ms, delay: 200.ms),
                                   const SizedBox(height: 8),
-                                  Text(
-                                    'Join Tinkerly Today! 🚀',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 18,
-                                      color: textColor.withOpacity(0.9),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ).animate().fadeIn(duration: 400.ms, delay: 300.ms),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    'Create your account and start your journey',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 13,
-                                      color: textColor.withOpacity(0.7),
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                  ).animate().fadeIn(duration: 400.ms, delay: 400.ms),
                                 ],
                               ),
                             ),
@@ -921,7 +904,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     validator: (value) => _usernameErrorText ?? (value!.isEmpty ? 'Enter a username' : null),
                                     fillColor: inputFillColor,
                                     borderColor: inputBorderColor,
-                                    focusNode: _usernameFocusNode,
                                   ).animate().fadeIn(duration: 400.ms, delay: 650.ms),
                                   const SizedBox(height: 16),
                                   // Email
@@ -933,7 +915,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     validator: (value) => _emailErrorText ?? (value!.contains('@') ? null : 'Enter a valid email'),
                                     fillColor: inputFillColor,
                                     borderColor: inputBorderColor,
-                                    focusNode: _emailFocusNode,
                                   ).animate().fadeIn(duration: 400.ms, delay: 700.ms),
                                   const SizedBox(height: 16),
                                   // Password
@@ -956,7 +937,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     validator: (value) => _phoneErrorText ?? (value!.isEmpty ? 'Please enter your phone number' : (!RegExp(r'^\+\d{10,15}$').hasMatch(value) ? 'Enter phone as +<countrycode><number>' : null)),
                                     fillColor: inputFillColor,
                                     borderColor: inputBorderColor,
-                                    focusNode: _phoneFocusNode,
                                   ).animate().fadeIn(duration: 400.ms, delay: 800.ms),
                                   const SizedBox(height: 8),
                                   Padding(
