@@ -48,23 +48,43 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       }
       await user.updatePassword(_passwordController.text.trim());
       // Optionally update backend user profile (if you want to track password set)
-      final username = UserService.generateUsername(
-        user.displayName ?? 'User',
-        user.email ?? ''
-      );
-      await UserService.saveUserProfile(
-        user.displayName ?? 'User',
-        user.email ?? '',
-        user.photoURL,
-        [],
-        username,
-        null,
-      );
+      // First try to fetch existing profile to avoid overwriting data
+      try {
+        final existingProfile = await UserService.fetchUserProfile();
+        if (existingProfile != null) {
+          // Update existing profile with minimal changes
+          await UserService.saveUserProfile(
+            existingProfile['name'] ?? user.displayName ?? '',
+            user.email ?? '',
+            existingProfile['profileImageUrl'] ?? user.photoURL,
+            List<String>.from(existingProfile['categories'] ?? []),
+            existingProfile['username'] ?? user.displayName ?? '',
+            existingProfile['bio'],
+            isEdit: true,
+          );
+        } else {
+          // Create new profile only if none exists
+          await UserService.saveUserProfile(
+            user.displayName ?? '',
+            user.email ?? '',
+            user.photoURL,
+            [],
+            user.displayName ?? '',
+            null,
+          );
+        }
+      } catch (e) {
+        // If profile operations fail, just log it - password was still updated
+        debugPrint('Profile update failed: $e');
+      }
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Password set successfully!')),
       );
       Navigator.pop(context, true);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}')),
       );
@@ -124,9 +144,9 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                  border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,4 +184,4 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       ),
     );
   }
-} 
+}
