@@ -1,0 +1,12 @@
+This is a placeholder for the Google logo.
+Please download a Google logo PNG file and rename it to 'google_logo.png' in this directory.
+
+You can download a Google logo from:
+- https://www.freepnglogos.com/pics/google-logo
+- https://icons8.com/icons/set/google-logo
+- https://www.vecteezy.com/free-png/google-logo
+
+Make sure the image is:
+- PNG format
+- Transparent background
+- Reasonable size (around 200x200 pixels)
