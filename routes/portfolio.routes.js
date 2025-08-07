@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const Portfolio = require('../models/portfolio');
 const Post = require('../models/Post');
 const Product = require('../models/product');
+const admin = require('../firebase');
 const {
   validatePortfolioName,
   checkPortfolioNameUnique,
@@ -11,8 +12,54 @@ const {
   createAsyncValidationMiddleware
 } = require('../middleware/validation');
 
-// Get all portfolios for a user
-router.get('/user/:userId', async (req, res) => {
+// Firebase Auth middleware for protected routes
+const verifyToken = async (req, res, next) => {
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    const idToken = req.headers.authorization.split('Bearer ')[1];
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      req.user = decodedToken;
+      next();
+    } catch (err) {
+      console.error('Firebase token verification failed:', err);
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  } else {
+    console.error('No token provided in Authorization header');
+    return res.status(401).json({ error: 'No token provided' });
+  }
+};
+
+// Search portfolios by name or category (MUST be before /:id route)
+router.get('/search', async (req, res) => {
+  try {
+    console.log('Portfolio search request received:', req.query);
+    const { query } = req.query;
+    if (!query || query.trim() === '') {
+      console.log('Empty query, returning empty array');
+      return res.json([]);
+    }
+
+    console.log('Searching portfolios with query:', query);
+    // Case-insensitive, partial match on profilename, category, or description
+    const portfolios = await Portfolio.find({
+      $or: [
+        { profilename: { $regex: query, $options: 'i' } },
+        { category: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } }
+      ],
+    }).select('profilename category description profileImageUrl userId createdAt'); // Only public fields
+
+    console.log('Found portfolios:', portfolios.length);
+    res.json(portfolios);
+  } catch (err) {
+    console.error('Error searching portfolios:', err);
+    res.status(500).json({ error: 'Failed to search portfolios', details: err.message });
+  }
+});
+
+// Get all portfolios for a user (protected)
+router.get('/user/:userId', verifyToken, async (req, res) => {
   try {
     console.log('Fetching portfolios for userId:', req.params.userId);
     const portfolios = await Portfolio.find({ userId: req.params.userId });
@@ -24,7 +71,7 @@ router.get('/user/:userId', async (req, res) => {
   }
 });
 
-// Get a single portfolio by ID
+// Get a single portfolio by ID (public for now)
 router.get('/:id', async (req, res) => {
   try {
     const portfolio = await Portfolio.findById(req.params.id);
@@ -191,4 +238,4 @@ router.get('/:id/followers', async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

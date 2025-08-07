@@ -248,6 +248,14 @@ app.get('/portfolio/name-exists-for-user', async (req, res) => {
 // OTP routes
 app.use('/otp', otpRoutes);
 
+// Register new portfolio and product routes BEFORE auth middleware
+const portfolioRoutes = require('./routes/portfolio.routes');
+const productRoutes = require('./routes/product.routes');
+console.log('Mounting portfolio routes at /portfolios');
+app.use('/portfolios', portfolioRoutes);
+console.log('Mounting product routes at /products');
+app.use('/products', productRoutes);
+
 // Firebase token verification function
 const verifyToken = async (req, res, next) => {
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
@@ -283,12 +291,6 @@ app.use(async (req, res, next) => {
     return res.status(401).json({ error: 'No token provided' });
   }
 });
-
-// Register new portfolio and product routes
-const portfolioRoutes = require('./routes/portfolio.routes');
-const productRoutes = require('./routes/product.routes');
-app.use('/portfolios', portfolioRoutes);
-app.use('/products', productRoutes);
 
 // Upload endpoint
 app.post('/upload', parser.single('file'), async (req, res) => {
