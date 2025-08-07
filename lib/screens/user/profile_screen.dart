@@ -68,6 +68,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         if (userId != null) {
           final fetchedPortfolios = await PortfolioService.fetchUserPortfolios(userId);
           print('Refreshed portfolios count: ${fetchedPortfolios.length}');
+          print('Refreshed portfolios: ${fetchedPortfolios.map((p) => '${p.category} (${p.id})').toList()}');
           if (mounted) {
             setState(() {
               portfolios = fetchedPortfolios;
@@ -87,38 +88,80 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         final userId = userProfile!["uid"];
         final userCategories = List<String>.from(userProfile!["categories"] ?? []);
         
+        print('=== ENSURING PORTFOLIOS EXIST ===');
+        print('User ID: $userId');
+        print('User categories: $userCategories');
+        
         if (userId != null && userCategories.isNotEmpty) {
+          // First, let's fetch existing portfolios
+          print('Fetching existing portfolios...');
           final existingPortfolios = await PortfolioService.fetchUserPortfolios(userId);
           final existingCategories = existingPortfolios.map((p) => p.category).toSet();
           final missingCategories = userCategories.where((cat) => !existingCategories.contains(cat));
           
-          print('User categories: $userCategories');
           print('Existing portfolio categories: $existingCategories');
           print('Missing categories: $missingCategories');
           
-          for (final cat in missingCategories) {
-            try {
-              await PortfolioService.createPortfolio({
-                'userId': userId,
-                'profilename': cat,
-                'category': cat,
-                'description': '',
-                'profileImageUrl': null,
-              });
-              print('Created portfolio for category: $cat');
-            } catch (e) {
-              print('Failed to create portfolio for category $cat: $e');
-            }
-          }
-          
-          // Refresh portfolios after creating missing ones
           if (missingCategories.isNotEmpty) {
-            await Future.delayed(Duration(milliseconds: 300));
-            await refreshPortfolios();
+            print('Creating ${missingCategories.length} missing portfolios...');
+            
+            bool portfoliosCreated = false;
+            for (final cat in missingCategories) {
+              try {
+                print('Creating portfolio for category: $cat');
+                
+                // Sanitize the portfolio name to remove invalid characters
+                final sanitizedName = cat.replaceAll('&', 'and').replaceAll(RegExp(r'[^a-zA-Z0-9\s_-]'), '');
+                
+                final portfolioData = {
+                  'userId': userId,
+                  'profilename': sanitizedName,
+                  'category': cat, // Keep original category for matching
+                  'description': '',
+                  'profileImageUrl': null,
+                };
+                print('Portfolio data: $portfolioData');
+                print('Sanitized name: "$sanitizedName" from original: "$cat"');
+                
+                final newPortfolio = await PortfolioService.createPortfolio(portfolioData);
+                print('Successfully created portfolio: ${newPortfolio.id} for category: $cat');
+                portfoliosCreated = true;
+                
+                // Small delay between creations
+                await Future.delayed(Duration(milliseconds: 200));
+              } catch (e) {
+                print('Failed to create portfolio for category $cat: $e');
+                print('Error details: ${e.toString()}');
+              }
+            }
+            
+            // Refresh portfolios after creating missing ones
+            if (portfoliosCreated) {
+              print('Portfolios were created, waiting before refresh...');
+              await Future.delayed(Duration(milliseconds: 1500));
+              
+              print('Refreshing portfolio list...');
+              await refreshPortfolios();
+              
+              // Verify the portfolios were created
+              final verifyPortfolios = await PortfolioService.fetchUserPortfolios(userId);
+              print('Verification: Found ${verifyPortfolios.length} portfolios after creation');
+              print('Verification: Categories: ${verifyPortfolios.map((p) => p.category).toList()}');
+              
+              print('Portfolio list refreshed after creation');
+            } else {
+              print('No portfolios were successfully created');
+            }
+          } else {
+            print('No new portfolios needed to be created');
           }
+        } else {
+          print('No user ID or categories found');
         }
+        print('=== END ENSURING PORTFOLIOS ===');
       } catch (e) {
         print('Error ensuring portfolios exist: $e');
+        print('Error details: ${e.toString()}');
       }
     }
   }
@@ -129,9 +172,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       final posts = await UserService.fetchPosts();
       final userId = profile?["uid"]; // Use uid directly since that's what the backend returns
       print('Profile userId: $userId'); // Debug log
+      print('User profile categories: ${profile?["categories"]}'); // Debug log
       
       final fetchedPortfolios = userId != null ? await PortfolioService.fetchUserPortfolios(userId) : [];
       print('Fetched portfolios count: ${fetchedPortfolios.length}'); // Debug log
+      print('Fetched portfolios: ${fetchedPortfolios.map((p) => '${p.category} (${p.id})').toList()}'); // Debug log
       
       if (!mounted) return;
       final newCategories = _extractCategories(posts);
@@ -205,8 +250,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         print('Profile updated, refreshing data...'); // Debug log
         await loadProfileAndPosts();
         // Wait a bit for portfolios to be created, then refresh
-        await Future.delayed(Duration(milliseconds: 500));
+        await Future.delayed(Duration(milliseconds: 1000));
         await refreshPortfolios();
+        // Ensure portfolios exist for all user categories after refresh
+        await ensurePortfoliosExist();
+        print('Profile and portfolios refresh completed');
       }
     } catch (e) {
       print('Error fetching latest profile: $e');
@@ -390,6 +438,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 } else {
                   _verifyPhone();
                 }
+              } else if (value == 'sync_portfolios') {
+                ensurePortfoliosExist();
               }
             },
             itemBuilder: (context) => [
@@ -435,6 +485,16 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                     Icon(Icons.lock, color: Color(0xFF6C63FF), size: 18),
                     const SizedBox(width: 8),
                     Text('Set Password'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'sync_portfolios',
+                child: Row(
+                  children: [
+                    Icon(Icons.sync, color: Color(0xFF6C63FF), size: 18),
+                    const SizedBox(width: 8),
+                    Text('Sync Portfolios'),
                   ],
                 ),
               ),
@@ -595,10 +655,19 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final isOwnProfile = currentUserId == userProfile!['uid'];
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-      child: Column(
-        children: [
+    return RefreshIndicator(
+      onRefresh: () async {
+        print('Manual refresh triggered for portfolios');
+        await loadProfileAndPosts();
+        await refreshPortfolios();
+        await ensurePortfoliosExist();
+        print('Manual refresh completed');
+      },
+      child: SingleChildScrollView(
+        physics: AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        child: Column(
+          children: [
           // Music Portfolio Section (Always show at top)
           Container(
             margin: EdgeInsets.only(bottom: 24),
@@ -628,6 +697,17 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF2D3748),
                     ),
+                  ),
+                  Spacer(),
+                  IconButton(
+                    icon: Icon(Icons.refresh, color: Color(0xFF6C63FF), size: 20),
+                    onPressed: () async {
+                      print('Manual refresh triggered from header');
+                      await loadProfileAndPosts();
+                      await ensurePortfoliosExist();
+                      await refreshPortfolios();
+                    },
+                    tooltip: 'Refresh Portfolios',
                   ),
                 ],
               ),
@@ -779,6 +859,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             ),
           ],
         ],
+      ),
       ),
     );
   }

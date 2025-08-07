@@ -356,6 +356,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           _showFileSizeError(bytes.length);
           return;
         }
+
+        // Validate media type against category
+        final mediaType = isVideo ? 'video' : 'image';
+        if (!_getAllowedMediaTypes().contains(mediaType)) {
+          _showMediaTypeError(mediaType);
+          return;
+        }
+
         if (isVideo) {
           // For web video, create a blob URL
           final blob = html.Blob([bytes], 'video/mp4');
@@ -398,6 +406,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           _showFileSizeError(fileSize);
           return;
         }
+
+        // Validate media type against category
+        final mediaType = isVideo ? 'video' : 'image';
+        if (!_getAllowedMediaTypes().contains(mediaType)) {
+          _showMediaTypeError(mediaType);
+          return;
+        }
+
         if (isVideo) {
           setState(() {
             _mediaFile = File(picked.path);
@@ -443,6 +459,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           _showFileSizeError(fileSize);
           return;
         }
+
+        // Validate media type against category
+        if (!_getAllowedMediaTypes().contains('audio')) {
+          _showMediaTypeError('audio');
+          return;
+        }
+
         setState(() {
           _audioFileName = file.name;
           _mediaType = 'audio';
@@ -592,6 +615,334 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildModernStepHeader(String stepNumber, String title, String subtitle, Color color, {bool done = false}) {
+    return Row(
+      children: [
+        Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            gradient: done 
+                ? LinearGradient(
+                    colors: [color, color.withOpacity(0.7)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : LinearGradient(
+                    colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: done ? color : color.withOpacity(0.3),
+              width: 2,
+            ),
+            boxShadow: done ? [
+              BoxShadow(
+                color: color.withOpacity(0.3),
+                blurRadius: 12,
+                offset: Offset(0, 6),
+              ),
+            ] : null,
+          ),
+          child: Center(
+            child: done
+                ? Icon(Icons.check_rounded, color: Colors.white, size: 24)
+                : Text(
+                    stepNumber,
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: done ? color : Color(0xFF1A202C),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: Color(0xFF718096),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'digital art':
+        return Icons.palette_rounded;
+      case 'music & audio':
+      case 'music and audio':
+        return Icons.music_note_rounded;
+      case 'tech & programming':
+      case 'tech and programming':
+        return Icons.code_rounded;
+      case 'photography':
+        return Icons.camera_alt_rounded;
+      case 'video & animation':
+      case 'video and animation':
+        return Icons.videocam_rounded;
+      case 'writing & literature':
+      case 'writing and literature':
+        return Icons.edit_rounded;
+      case 'design & ui/ux':
+      case 'design and ui/ux':
+        return Icons.design_services_rounded;
+      case 'gaming':
+        return Icons.sports_esports_rounded;
+      case 'crafts & diy':
+      case 'crafts and diy':
+        return Icons.handyman_rounded;
+      case 'business & entrepreneurship':
+      case 'business and entrepreneurship':
+        return Icons.business_rounded;
+      default:
+        return Icons.category_rounded;
+    }
+  }
+
+  // Media type validation system
+  Map<String, List<String>> get _categoryMediaTypes => {
+    'Digital Art': ['image'],
+    'Music & Audio': ['audio'],
+    'Music and Audio': ['audio'],
+    'Tech & Programming': ['image', 'video'],
+    'Tech and Programming': ['image', 'video'],
+    'Photography': ['image'],
+    'Video & Animation': ['video'],
+    'Video and Animation': ['video'],
+    'Writing & Literature': ['image'],
+    'Writing and Literature': ['image'],
+    'Design & UI/UX': ['image', 'video'],
+    'Design and UI/UX': ['image', 'video'],
+    'Gaming': ['image', 'video'],
+    'Crafts & DIY': ['image', 'video'],
+    'Crafts and DIY': ['image', 'video'],
+    'Business & Entrepreneurship': ['image', 'video'],
+    'Business and Entrepreneurship': ['image', 'video'],
+  };
+
+  List<String> _getAllowedMediaTypes() {
+    if (_selectedCategory == null) return ['image', 'video', 'audio'];
+    return _categoryMediaTypes[_selectedCategory] ?? ['image', 'video', 'audio'];
+  }
+
+  bool _isMediaTypeAllowed() {
+    if (_selectedCategory == null || _mediaType == null) return true;
+    return _getAllowedMediaTypes().contains(_mediaType);
+  }
+
+  String _getMediaTypeDescription() {
+    final allowedTypes = _getAllowedMediaTypes();
+    if (allowedTypes.length == 3) return 'Images, Videos, and Audio';
+    if (allowedTypes.length == 2) {
+      if (allowedTypes.contains('image') && allowedTypes.contains('video')) {
+        return 'Images and Videos only';
+      } else if (allowedTypes.contains('image') && allowedTypes.contains('audio')) {
+        return 'Images and Audio only';
+      } else if (allowedTypes.contains('video') && allowedTypes.contains('audio')) {
+        return 'Videos and Audio only';
+      }
+    }
+    if (allowedTypes.contains('image')) return 'Images only';
+    if (allowedTypes.contains('video')) return 'Videos only';
+    if (allowedTypes.contains('audio')) return 'Audio only';
+    return 'No media allowed';
+  }
+
+  void _showMediaTypeError(String attemptedType) {
+    final allowedTypes = _getMediaTypeDescription();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Invalid media type for $_selectedCategory',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text('You tried to upload: ${attemptedType.toUpperCase()}'),
+            Text('Allowed for this category: $allowedTypes'),
+          ],
+        ),
+        backgroundColor: Colors.orange[700],
+        duration: Duration(seconds: 5),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _buildSubcategoryChips() {
+    if (_selectedCategory == null) return Container();
+    
+    final subcategories = subCategorySuggestions[_selectedCategory] ?? [];
+    final allSubcategories = [...subcategories, 'custom'];
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Available subcategories for $_selectedCategory:',
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            color: Color(0xFF718096),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: allSubcategories.map((subcategory) {
+            final isSelected = _selectedSubCategory == subcategory;
+            final isCustom = subcategory == 'custom';
+            
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedSubCategory = subcategory;
+                  if (subcategory != 'custom') {
+                    _customSubCategoryController.clear();
+                  }
+                });
+              },
+              child: AnimatedContainer(
+                duration: Duration(milliseconds: 300),
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  gradient: isSelected
+                      ? LinearGradient(
+                          colors: isCustom 
+                              ? [Color(0xFF4ECDC4), Color(0xFF6C63FF)]
+                              : [Color(0xFF4ECDC4), Color(0xFF44A08D)],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        )
+                      : LinearGradient(
+                          colors: [
+                            Color(0xFF4ECDC4).withOpacity(0.1),
+                            Color(0xFF6C63FF).withOpacity(0.05),
+                          ],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isSelected 
+                        ? Colors.transparent 
+                        : Color(0xFF4ECDC4).withOpacity(0.3),
+                    width: 1.5,
+                  ),
+                  boxShadow: isSelected ? [
+                    BoxShadow(
+                      color: Color(0xFF4ECDC4).withOpacity(0.4),
+                      blurRadius: 12,
+                      offset: Offset(0, 6),
+                    ),
+                  ] : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isCustom) ...[
+                      Icon(
+                        Icons.add_circle_outline_rounded,
+                        color: isSelected ? Colors.white : Color(0xFF4ECDC4),
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Text(
+                      isCustom ? 'Custom' : subcategory,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected ? Colors.white : Color(0xFF1A202C),
+                      ),
+                    ),
+                    if (isSelected && !isCustom) ...[
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.check_circle_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  List<DropdownMenuItem<String>> _getSubcategoryItems() {
+    if (_selectedCategory == null) return [];
+    
+    final subcategories = subCategorySuggestions[_selectedCategory] ?? [];
+    final items = subcategories.map((subcategory) => 
+      DropdownMenuItem<String>(
+        value: subcategory,
+        child: Text(
+          subcategory,
+          style: GoogleFonts.poppins(color: Colors.black),
+        ),
+      ),
+    ).toList();
+    
+    // Add custom option
+    items.add(
+      DropdownMenuItem<String>(
+        value: 'custom',
+        child: Text(
+          'Custom (Enter your own)',
+          style: GoogleFonts.poppins(
+            color: Colors.black,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      ),
+    );
+    
+    return items;
+  }
+
+  bool _isSubcategoryValid() {
+    if (_selectedCategory == null) return false;
+    if (_selectedSubCategory == null) return false;
+    if (_selectedSubCategory == 'custom') {
+      return _customSubCategoryController.text.trim().isNotEmpty;
+    }
+    return true;
   }
 
   Widget _buildMediaPreview() {
@@ -767,107 +1118,175 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   Widget build(BuildContext context) {
     final primaryColor = Color(0xFF6C63FF);
     final secondaryColor = Color(0xFFFF6B9D);
+    final accentColor = Color(0xFF4ECDC4);
+    final backgroundColor = Color(0xFFF8FAFF);
     
     return Scaffold(
-      backgroundColor: Color(0xFFFAFAFA),
+      backgroundColor: backgroundColor,
       body: Container(
-        color: Color(0xFFFAFAFA),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              backgroundColor,
+              Color(0xFFF0F4FF),
+            ],
+          ),
+        ),
         child: SafeArea(
           child: Column(
             children: [
-              // Custom App Bar
+              // Modern App Bar with Glassmorphism Effect
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                margin: EdgeInsets.all(16),
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Colors.white.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1.5,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: Offset(0, 2),
+                      color: primaryColor.withOpacity(0.1),
+                      blurRadius: 20,
+                      spreadRadius: 0,
+                      offset: Offset(0, 8),
                     ),
                   ],
                 ),
                 child: Row(
                   children: [
                     Container(
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
-                        color: Color(0xFFF7FAFC),
-                        borderRadius: BorderRadius.circular(12),
+                        gradient: LinearGradient(
+                          colors: [primaryColor.withOpacity(0.1), accentColor.withOpacity(0.1)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: Color(0xFFE2E8F0),
+                          color: primaryColor.withOpacity(0.2),
                           width: 1,
                         ),
                       ),
                       child: IconButton(
-                        icon: Icon(Icons.arrow_back, color: Color(0xFF6C63FF)),
+                        icon: Icon(Icons.arrow_back_ios_new, color: primaryColor, size: 20),
                         onPressed: () => Navigator.pop(context),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 16),
                     Container(
-                      padding: EdgeInsets.all(8),
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [primaryColor, secondaryColor],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: primaryColor.withOpacity(0.3),
-                            blurRadius: 8,
-                            offset: Offset(0, 2),
+                            color: primaryColor.withOpacity(0.4),
+                            blurRadius: 12,
+                            offset: Offset(0, 4),
                           ),
                         ],
                       ),
-                      child: Icon(Icons.add_photo_alternate, color: Colors.white, size: 20),
+                      child: Icon(Icons.create_rounded, color: Colors.white, size: 22),
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Create Post',
-                      style: GoogleFonts.poppins(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF2D3748),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Create Post',
+                            style: GoogleFonts.poppins(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1A202C),
+                            ),
+                          ),
+                          Text(
+                            'Share your creativity',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: Color(0xFF718096),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ).animate().fadeIn(duration: 400.ms),
+              ).animate().slideY(begin: -0.3, duration: 600.ms).fadeIn(),
               
               // Main Content
               Expanded(
                 child: _isLoading
                     ? Center(
                         child: Container(
-                          padding: EdgeInsets.all(24),
+                          padding: EdgeInsets.all(32),
                           margin: EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
+                            color: Colors.white.withOpacity(0.95),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
+                              width: 1.5,
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 10,
-                                offset: Offset(0, 2),
+                                color: primaryColor.withOpacity(0.1),
+                                blurRadius: 30,
+                                spreadRadius: 0,
+                                offset: Offset(0, 15),
                               ),
                             ],
                           ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6C63FF)),
+                              Container(
+                                width: 60,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [primaryColor, secondaryColor],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    strokeWidth: 3,
+                                  ),
+                                ),
                               ),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 24),
                               Text(
                                 'Creating your post...',
                                 style: GoogleFonts.poppins(
-                                  color: Color(0xFF2D3748),
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF1A202C),
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Please wait while we process your content',
+                                style: GoogleFonts.poppins(
+                                  color: Color(0xFF718096),
+                                  fontSize: 14,
                                 ),
                               ),
                             ],
@@ -876,53 +1295,73 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       )
                     : SingleChildScrollView(
                         physics: BouncingScrollPhysics(),
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Step 1: Media Selection
+                            // Step 1: Media Selection - Modern Card Design
                             Container(
-                              padding: EdgeInsets.all(16),
+                              margin: EdgeInsets.only(bottom: 20),
+                              padding: EdgeInsets.all(24),
                               decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
+                                color: Colors.white.withOpacity(0.95),
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.3),
+                                  width: 1.5,
+                                ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 10,
+                                    color: primaryColor.withOpacity(0.08),
+                                    blurRadius: 25,
                                     spreadRadius: 0,
-                                    offset: Offset(0, 10),
+                                    offset: Offset(0, 12),
                                   ),
                                 ],
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _buildStepHeader(
-                                    '1. Select Media',
+                                  _buildModernStepHeader(
+                                    '1',
+                                    'Select Media',
+                                    'Choose your creative content',
+                                    primaryColor,
                                     done: kIsWeb ? (_webImageBytes != null || _webVideoUrl != null || _webAudioUrl != null) : (_mediaFile != null),
                                   ),
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 20),
                                   GestureDetector(
                                     onTap: _pickMedia,
                                     child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 300),
-                                      height: 200,
+                                      duration: const Duration(milliseconds: 400),
+                                      height: 220,
                                       decoration: BoxDecoration(
-                                        color: Color(0xFFF7FAFC),
-                                        borderRadius: BorderRadius.circular(16),
+                                        gradient: (kIsWeb ? (_webImageBytes == null && _webVideoUrl == null && _webAudioUrl == null) : _mediaFile == null)
+                                            ? LinearGradient(
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                                colors: [
+                                                  primaryColor.withOpacity(0.1),
+                                                  accentColor.withOpacity(0.1),
+                                                ],
+                                              )
+                                            : null,
+                                        color: (kIsWeb ? (_webImageBytes != null || _webVideoUrl != null || _webAudioUrl != null) : _mediaFile != null)
+                                            ? Colors.grey[50]
+                                            : null,
+                                        borderRadius: BorderRadius.circular(20),
                                         border: Border.all(
                                           color: (kIsWeb ? (_webImageBytes == null && _webVideoUrl == null && _webAudioUrl == null) : _mediaFile == null)
-                                              ? Color(0xFFE2E8F0)
-                                              : primaryColor,
+                                              ? primaryColor.withOpacity(0.3)
+                                              : primaryColor.withOpacity(0.6),
                                           width: 2,
                                         ),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: primaryColor.withOpacity(0.2),
-                                            blurRadius: 15,
+                                            color: primaryColor.withOpacity(0.15),
+                                            blurRadius: 20,
                                             spreadRadius: 0,
-                                            offset: Offset(0, 8),
+                                            offset: Offset(0, 10),
                                           ),
                                         ],
                                       ),
@@ -931,125 +1370,350 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                               mainAxisAlignment: MainAxisAlignment.center,
                                               children: [
                                                 Container(
-                                                  padding: EdgeInsets.all(16),
+                                                  width: 80,
+                                                  height: 80,
                                                   decoration: BoxDecoration(
                                                     gradient: LinearGradient(
                                                       colors: [primaryColor, secondaryColor],
                                                       begin: Alignment.topLeft,
                                                       end: Alignment.bottomRight,
                                                     ),
-                                                    shape: BoxShape.circle,
+                                                    borderRadius: BorderRadius.circular(24),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: primaryColor.withOpacity(0.4),
+                                                        blurRadius: 15,
+                                                        offset: Offset(0, 8),
+                                                      ),
+                                                    ],
                                                   ),
                                                   child: Icon(
-                                                    Icons.add_photo_alternate,
+                                                    Icons.add_photo_alternate_rounded,
                                                     color: Colors.white,
-                                                    size: 32,
+                                                    size: 36,
                                                   ),
                                                 ),
-                                                const SizedBox(height: 16),
+                                                const SizedBox(height: 20),
                                                 Text(
-                                                  'Tap to select image, video, or music',
+                                                  'Tap to select media',
                                                   style: GoogleFonts.poppins(
-                                                    color: Colors.white.withOpacity(0.8),
-                                                    fontSize: 16,
-                                                    fontWeight: FontWeight.w500,
+                                                    color: Color(0xFF1A202C),
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.bold,
                                                   ),
                                                 ),
                                                 const SizedBox(height: 8),
                                                 Text(
-                                                  'Share your creativity with the world',
+                                                  'Image, Video, or Audio',
                                                   style: GoogleFonts.poppins(
-                                                    color: Colors.white.withOpacity(0.6),
-                                                    fontSize: 12,
+                                                    color: Color(0xFF718096),
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w500,
                                                   ),
+                                                ),
+                                                const SizedBox(height: 12),
+                                                Row(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Container(
+                                                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                      decoration: BoxDecoration(
+                                                        color: accentColor.withOpacity(0.1),
+                                                        borderRadius: BorderRadius.circular(16),
+                                                        border: Border.all(
+                                                          color: accentColor.withOpacity(0.3),
+                                                          width: 1,
+                                                        ),
+                                                      ),
+                                                      child: Text(
+                                                        'Max 100MB',
+                                                        style: GoogleFonts.poppins(
+                                                          color: accentColor,
+                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    if (_selectedCategory != null) ...[
+                                                      const SizedBox(width: 8),
+                                                      Container(
+                                                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                        decoration: BoxDecoration(
+                                                          color: primaryColor.withOpacity(0.1),
+                                                          borderRadius: BorderRadius.circular(16),
+                                                          border: Border.all(
+                                                            color: primaryColor.withOpacity(0.3),
+                                                            width: 1,
+                                                          ),
+                                                        ),
+                                                        child: Text(
+                                                          _getMediaTypeDescription(),
+                                                          style: GoogleFonts.poppins(
+                                                            color: primaryColor,
+                                                            fontSize: 11,
+                                                            fontWeight: FontWeight.w600,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
                                                 ),
                                               ],
                                             )
                                           : ClipRRect(
-                                              borderRadius: BorderRadius.circular(14),
+                                              borderRadius: BorderRadius.circular(18),
                                               child: _buildMediaPreview(),
                                             ),
                                     ),
                                   ),
                                 ],
                               ),
-                            ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
+                            ).animate().slideX(begin: -0.3, duration: 600.ms, delay: 100.ms).fadeIn(),
                             
                             const SizedBox(height: 20),
 
-                            // Step 2: Portfolio Selection
+                            // Step 2: Category Selection - Modern Interactive Design
                             Container(
-                              padding: EdgeInsets.all(16),
+                              margin: EdgeInsets.only(bottom: 20),
+                              padding: EdgeInsets.all(24),
                               decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
+                                color: Colors.white.withOpacity(0.95),
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.3),
+                                  width: 1.5,
+                                ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 10,
+                                    color: secondaryColor.withOpacity(0.08),
+                                    blurRadius: 25,
                                     spreadRadius: 0,
-                                    offset: Offset(0, 10),
+                                    offset: Offset(0, 12),
                                   ),
                                 ],
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _buildStepHeader('2. Choose Category', done: _selectedPortfolio != null),
-                                  const SizedBox(height: 16),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.2),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                    child: DropdownButtonHideUnderline(
-                                      child: DropdownButton<Portfolio>(
-                                        value: _selectedPortfolio,
-                                        hint: Text(
-                                          'Select category',
-                                          style: GoogleFonts.poppins(
-                                            color: Colors.black.withOpacity(0.7),
-                                          ),
-                                        ),
-                                        isExpanded: true,
-                                        dropdownColor: Color(0xFF764BA2),
-                                        style: GoogleFonts.poppins(color: Colors.black),
-                                        icon: Icon(Icons.keyboard_arrow_down, color: Colors.black),
-                                        items: _userPortfolios.isEmpty
-                                            ? [
-                                                DropdownMenuItem(
-                                                  value: null,
-                                                  child: Text(
-                                                    'No categories available',
-                                                    style: GoogleFonts.poppins(color: Colors.grey),
-                                                  ),
-                                                )
-                                              ]
-                                            : _userPortfolios
-                                                .map((portfolio) => DropdownMenuItem(
-                                                      value: portfolio,
-                                                      child: Text(
-                                                        portfolio.category, // Changed from portfolio.profilename to portfolio.category
-                                                        style: GoogleFonts.poppins(color: Colors.black),
-                                                      ),
-                                                    ))
-                                                .toList(),
-                                        onChanged: (val) {
-                                          setState(() {
-                                            _selectedPortfolio = val;
-                                            _selectedCategory = val?.category;
-                                            _selectedSubCategory = null;
-                                            _customSubCategoryController.clear();
-                                          });
-                                        },
-                                      ),
-                                    ),
+                                  _buildModernStepHeader(
+                                    '2',
+                                    'Choose Category',
+                                    'Select your creative field',
+                                    secondaryColor,
+                                    done: _selectedPortfolio != null,
                                   ),
+                                  const SizedBox(height: 20),
+                                  if (_userPortfolios.isNotEmpty) ...[
+                                    // Modern Category Grid
+                                    GridView.builder(
+                                      shrinkWrap: true,
+                                      physics: NeverScrollableScrollPhysics(),
+                                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 1,
+                                        crossAxisSpacing: 12,
+                                        mainAxisSpacing: 12,
+                                        childAspectRatio: 4.5,
+                                      ),
+                                      itemCount: _userPortfolios.length,
+                                      itemBuilder: (context, index) {
+                                        final portfolio = _userPortfolios[index];
+                                        final isSelected = _selectedPortfolio?.id == portfolio.id;
+                                        
+                                        return GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _selectedPortfolio = portfolio;
+                                              _selectedCategory = portfolio.category;
+                                              _selectedSubCategory = null;
+                                              _customSubCategoryController.clear();
+                                              
+                                              // Check if current media is still valid for new category
+                                              if (_mediaType != null && !_isMediaTypeAllowed()) {
+                                                // Clear invalid media
+                                                _mediaFile = null;
+                                                _webImageBytes = null;
+                                                _webVideoUrl = null;
+                                                _webAudioUrl = null;
+                                                _audioFileName = null;
+                                                _mediaType = null;
+                                                
+                                                // Show warning
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      'Previous media cleared - not allowed for ${portfolio.category}',
+                                                    ),
+                                                    backgroundColor: Colors.orange,
+                                                    duration: Duration(seconds: 3),
+                                                  ),
+                                                );
+                                              }
+                                            });
+                                          },
+                                          child: AnimatedContainer(
+                                            duration: Duration(milliseconds: 300),
+                                            padding: EdgeInsets.all(16),
+                                            decoration: BoxDecoration(
+                                              gradient: isSelected
+                                                  ? LinearGradient(
+                                                      colors: [secondaryColor, primaryColor],
+                                                      begin: Alignment.topLeft,
+                                                      end: Alignment.bottomRight,
+                                                    )
+                                                  : LinearGradient(
+                                                      colors: [
+                                                        secondaryColor.withOpacity(0.1),
+                                                        primaryColor.withOpacity(0.05),
+                                                      ],
+                                                      begin: Alignment.topLeft,
+                                                      end: Alignment.bottomRight,
+                                                    ),
+                                              borderRadius: BorderRadius.circular(16),
+                                              border: Border.all(
+                                                color: isSelected 
+                                                    ? Colors.transparent 
+                                                    : secondaryColor.withOpacity(0.3),
+                                                width: 2,
+                                              ),
+                                              boxShadow: isSelected ? [
+                                                BoxShadow(
+                                                  color: secondaryColor.withOpacity(0.4),
+                                                  blurRadius: 15,
+                                                  offset: Offset(0, 8),
+                                                ),
+                                              ] : null,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 32,
+                                                  height: 32,
+                                                  decoration: BoxDecoration(
+                                                    color: isSelected 
+                                                        ? Colors.white.withOpacity(0.2)
+                                                        : secondaryColor.withOpacity(0.2),
+                                                    borderRadius: BorderRadius.circular(10),
+                                                  ),
+                                                  child: Icon(
+                                                    _getCategoryIcon(portfolio.category),
+                                                    color: isSelected ? Colors.white : secondaryColor,
+                                                    size: 18,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Text(
+                                                    portfolio.category,
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 16,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: isSelected ? Colors.white : Color(0xFF1A202C),
+                                                    ),
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                                if (isSelected)
+                                                  Icon(
+                                                    Icons.check_circle_rounded,
+                                                    color: Colors.white,
+                                                    size: 20,
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ] else ...[
+                                    // No categories available
+                                    Container(
+                                      padding: EdgeInsets.all(20),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.orange.withOpacity(0.1),
+                                            Colors.red.withOpacity(0.05),
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: Colors.orange.withOpacity(0.3),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Container(
+                                            width: 60,
+                                            height: 60,
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange.withOpacity(0.2),
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
+                                            child: Icon(
+                                              Icons.category_outlined,
+                                              color: Colors.orange,
+                                              size: 28,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            'No Categories Found',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.orange[800],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'Add categories to your profile first, then refresh this page to see them here.',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 13,
+                                              color: Colors.orange[700],
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Container(
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                colors: [Colors.orange, Colors.deepOrange],
+                                                begin: Alignment.centerLeft,
+                                                end: Alignment.centerRight,
+                                              ),
+                                              borderRadius: BorderRadius.circular(12),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.orange.withOpacity(0.3),
+                                                  blurRadius: 8,
+                                                  offset: Offset(0, 4),
+                                                ),
+                                              ],
+                                            ),
+                                            child: ElevatedButton.icon(
+                                              onPressed: _refreshData,
+                                              icon: Icon(Icons.refresh_rounded, size: 18),
+                                              label: Text('Refresh Categories'),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.transparent,
+                                                foregroundColor: Colors.white,
+                                                elevation: 0,
+                                                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                                textStyle: GoogleFonts.poppins(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                   if (_userPortfolios.isEmpty) ...[
                                     const SizedBox(height: 16),
                                     Container(
@@ -1109,127 +1773,387 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             
                             const SizedBox(height: 20),
 
-                            // Step 3: Description
+                            // Step 3: Subcategory Selection - Modern Interactive Design
+                            if (_selectedCategory != null) ...[
+                              Container(
+                                margin: EdgeInsets.only(bottom: 20),
+                                padding: EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.95),
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: accentColor.withOpacity(0.08),
+                                      blurRadius: 25,
+                                      spreadRadius: 0,
+                                      offset: Offset(0, 12),
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildModernStepHeader(
+                                      '3',
+                                      'Choose Subcategory',
+                                      'Specify your niche area',
+                                      accentColor,
+                                      done: _selectedSubCategory != null,
+                                    ),
+                                    const SizedBox(height: 20),
+                                    
+                                    // Modern Subcategory Chips
+                                    _buildSubcategoryChips(),
+                                    
+                                    // Custom subcategory input
+                                    if (_selectedSubCategory == 'custom') ...[
+                                      const SizedBox(height: 20),
+                                      Container(
+                                        padding: EdgeInsets.all(20),
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              accentColor.withOpacity(0.1),
+                                              primaryColor.withOpacity(0.05),
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                          borderRadius: BorderRadius.circular(20),
+                                          border: Border.all(
+                                            color: accentColor.withOpacity(0.3),
+                                            width: 2,
+                                          ),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Container(
+                                                  width: 40,
+                                                  height: 40,
+                                                  decoration: BoxDecoration(
+                                                    gradient: LinearGradient(
+                                                      colors: [accentColor, primaryColor],
+                                                      begin: Alignment.topLeft,
+                                                      end: Alignment.bottomRight,
+                                                    ),
+                                                    borderRadius: BorderRadius.circular(12),
+                                                  ),
+                                                  child: Icon(
+                                                    Icons.edit_rounded,
+                                                    color: Colors.white,
+                                                    size: 20,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Text(
+                                                  'Custom Subcategory',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFF1A202C),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 16),
+                                            Container(
+                                              decoration: BoxDecoration(
+                                                color: Colors.white.withOpacity(0.8),
+                                                borderRadius: BorderRadius.circular(16),
+                                                border: Border.all(
+                                                  color: accentColor.withOpacity(0.3),
+                                                  width: 1.5,
+                                                ),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: accentColor.withOpacity(0.1),
+                                                    blurRadius: 10,
+                                                    offset: Offset(0, 4),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: TextField(
+                                                controller: _customSubCategoryController,
+                                                style: GoogleFonts.poppins(
+                                                  color: Color(0xFF1A202C),
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                                decoration: InputDecoration(
+                                                  hintText: 'Enter your custom subcategory...',
+                                                  hintStyle: GoogleFonts.poppins(
+                                                    color: Color(0xFF718096),
+                                                    fontSize: 15,
+                                                  ),
+                                                  border: InputBorder.none,
+                                                  contentPadding: EdgeInsets.all(20),
+                                                  prefixIcon: Padding(
+                                                    padding: EdgeInsets.all(12),
+                                                    child: Icon(
+                                                      Icons.create_rounded,
+                                                      color: accentColor,
+                                                      size: 20,
+                                                    ),
+                                                  ),
+                                                ),
+                                                onChanged: (_) => setState(() {}),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ).animate().slideX(begin: 0.3, duration: 600.ms, delay: 200.ms).fadeIn(),
+                            ],
+
+                            // Step 4: Description - Modern Design
                             Container(
-                              padding: EdgeInsets.all(16),
+                              margin: EdgeInsets.only(bottom: 32),
+                              padding: EdgeInsets.all(24),
                               decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
+                                color: Colors.white.withOpacity(0.95),
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.3),
+                                  width: 1.5,
+                                ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 10,
+                                    color: Color(0xFF9C88FF).withOpacity(0.08),
+                                    blurRadius: 25,
                                     spreadRadius: 0,
-                                    offset: Offset(0, 10),
+                                    offset: Offset(0, 12),
                                   ),
                                 ],
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _buildStepHeader('3. Add Description', done: _descController.text.isNotEmpty),
-                                  const SizedBox(height: 16),
+                                  _buildModernStepHeader(
+                                    '4',
+                                    'Add Description',
+                                    'Tell your story and engage your audience',
+                                    Color(0xFF9C88FF),
+                                    done: _descController.text.isNotEmpty,
+                                  ),
+                                  const SizedBox(height: 20),
                                   Container(
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(16),
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Color(0xFF9C88FF).withOpacity(0.1),
+                                          Color(0xFF6C63FF).withOpacity(0.05),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
-                                        color: Colors.white.withOpacity(0.2),
-                                        width: 1,
+                                        color: Color(0xFF9C88FF).withOpacity(0.3),
+                                        width: 1.5,
                                       ),
                                     ),
                                     child: TextField(
                                       controller: _descController,
-                                      maxLines: 4,
+                                      maxLines: 5,
                                       style: GoogleFonts.poppins(
-                                        color: Colors.black,
-                                        fontSize: 15,
+                                        color: Color(0xFF1A202C),
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                        height: 1.5,
                                       ),
                                       decoration: InputDecoration(
-                                        hintText: 'Describe your post... (max 300 chars)',
+                                        hintText: 'Share the story behind your creation...\n\nWhat inspired you? What techniques did you use? What makes this special?',
                                         hintStyle: GoogleFonts.poppins(
-                                          color: Colors.black.withOpacity(0.7),
+                                          color: Color(0xFF718096),
+                                          fontSize: 15,
+                                          height: 1.4,
                                         ),
                                         border: InputBorder.none,
-                                        contentPadding: EdgeInsets.all(16),
+                                        contentPadding: EdgeInsets.all(20),
                                         counterText: '',
+                                        prefixIcon: Padding(
+                                          padding: EdgeInsets.only(left: 20, top: 20, right: 12),
+                                          child: Icon(
+                                            Icons.description_rounded,
+                                            color: Color(0xFF9C88FF),
+                                            size: 22,
+                                          ),
+                                        ),
                                       ),
                                       maxLength: 300,
                                       onChanged: (_) => setState(() {}),
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    '${_descController.text.length}/300 characters',
-                                    style: GoogleFonts.poppins(
-                                      color: Colors.black.withOpacity(0.6),
-                                      fontSize: 12,
-                                    ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.info_outline_rounded,
+                                            color: Color(0xFF718096),
+                                            size: 16,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Be descriptive and engaging',
+                                            style: GoogleFonts.poppins(
+                                              color: Color(0xFF718096),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      Container(
+                                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: _descController.text.length > 250 
+                                              ? Colors.orange.withOpacity(0.1)
+                                              : Color(0xFF9C88FF).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: _descController.text.length > 250 
+                                                ? Colors.orange.withOpacity(0.3)
+                                                : Color(0xFF9C88FF).withOpacity(0.3),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${_descController.text.length}/300',
+                                          style: GoogleFonts.poppins(
+                                            color: _descController.text.length > 250 
+                                                ? Colors.orange
+                                                : Color(0xFF9C88FF),
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
-                            ).animate().fadeIn(duration: 400.ms, delay: 300.ms),
+                            ).animate().slideX(begin: -0.3, duration: 600.ms, delay: 300.ms).fadeIn(),
                             
                             const SizedBox(height: 32),
                             
-                            // Post Button
+                            // Modern Submit Button
                             Container(
                               width: double.infinity,
-                              height: 56,
+                              height: 64,
+                              margin: EdgeInsets.symmetric(horizontal: 8),
                               decoration: BoxDecoration(
-                                gradient: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _descController.text.isNotEmpty
+                                gradient: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _isSubcategoryValid() && _descController.text.isNotEmpty
                                     ? LinearGradient(
-                                        colors: [primaryColor, secondaryColor],
+                                        colors: [primaryColor, secondaryColor, accentColor],
                                         begin: Alignment.centerLeft,
                                         end: Alignment.centerRight,
+                                        stops: [0.0, 0.6, 1.0],
                                       )
-                                    : null,
-                                color: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _descController.text.isNotEmpty
-                                    ? null
-                                    : Colors.white.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null || _webAudioUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _descController.text.isNotEmpty
+                                    : LinearGradient(
+                                        colors: [
+                                          Color(0xFFE2E8F0),
+                                          Color(0xFFCBD5E0),
+                                        ],
+                                        begin: Alignment.centerLeft,
+                                        end: Alignment.centerRight,
+                                      ),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null || _webAudioUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _isSubcategoryValid() && _descController.text.isNotEmpty
                                     ? [
                                         BoxShadow(
                                           color: primaryColor.withOpacity(0.4),
-                                          blurRadius: 20,
+                                          blurRadius: 25,
                                           spreadRadius: 0,
-                                          offset: Offset(0, 10),
+                                          offset: Offset(0, 12),
+                                        ),
+                                        BoxShadow(
+                                          color: secondaryColor.withOpacity(0.2),
+                                          blurRadius: 15,
+                                          spreadRadius: 0,
+                                          offset: Offset(0, 6),
                                         ),
                                       ]
-                                    : null,
+                                    : [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.05),
+                                          blurRadius: 10,
+                                          offset: Offset(0, 4),
+                                        ),
+                                      ],
                               ),
                               child: ElevatedButton(
-                                onPressed: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null || _webAudioUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _descController.text.isNotEmpty && !_isLoading
+                                onPressed: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null || _webAudioUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _isSubcategoryValid() && _descController.text.isNotEmpty && !_isLoading
                                     ? _submitPost
                                     : null,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.transparent,
                                   foregroundColor: Colors.white,
                                   elevation: 0,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                                 ),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.publish, size: 24),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Share Post',
-                                      style: GoogleFonts.poppins(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 18,
-                                        letterSpacing: 1,
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
+                                      child: Icon(
+                                        Icons.rocket_launch_rounded,
+                                        color: Colors.white,
+                                        size: 22,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Share Your Creation',
+                                          style: GoogleFonts.poppins(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18,
+                                            color: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null || _webAudioUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _isSubcategoryValid() && _descController.text.isNotEmpty
+                                                ? Colors.white
+                                                : Color(0xFF718096),
+                                          ),
+                                        ),
+                                        Text(
+                                          'Publish to your portfolio',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12,
+                                            color: ((kIsWeb && (_webImageBytes != null || _webVideoUrl != null || _webAudioUrl != null)) || (!kIsWeb && _mediaFile != null)) && _selectedPortfolio != null && _isSubcategoryValid() && _descController.text.isNotEmpty
+                                                ? Colors.white.withOpacity(0.8)
+                                                : Color(0xFF718096).withOpacity(0.7),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
                               ),
-                            ).animate().fadeIn(duration: 400.ms, delay: 400.ms),
+                            ).animate().scale(begin: Offset(0.9, 0.9), duration: 600.ms, delay: 400.ms).fadeIn(),
                             
                             const SizedBox(height: 16),
                             
-                            if (((kIsWeb && _webImageBytes == null && _webVideoUrl == null && _webAudioUrl == null) || (!kIsWeb && _mediaFile == null)) || _selectedPortfolio == null || _descController.text.isEmpty)
+                            if (((kIsWeb && _webImageBytes == null && _webVideoUrl == null && _webAudioUrl == null) || (!kIsWeb && _mediaFile == null)) || _selectedPortfolio == null || !_isSubcategoryValid() || _descController.text.isEmpty)
                               Container(
                                 padding: EdgeInsets.all(16),
                                 decoration: BoxDecoration(

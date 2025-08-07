@@ -192,4 +192,68 @@ class PortfolioService {
       rethrow;
     }
   }
+
+  static Future<bool> deletePortfolio(String portfolioId) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+      
+      final idToken = await user.getIdToken();
+      final response = await http.delete(
+        Uri.parse('${ApiConstants.baseUrl}/portfolios/$portfolioId'),
+        headers: {
+          'Authorization': 'Bearer $idToken',
+        },
+      );
+      
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        print('Portfolio deleted successfully: $portfolioId');
+        return true;
+      } else {
+        print('Portfolio deletion failed with status: ${response.statusCode}');
+        print('Response body: ${response.body}');
+        throw Exception('Failed to delete portfolio: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('Error in deletePortfolio: $e');
+      rethrow;
+    }
+  }
+
+  static Future<List<Portfolio>> getPortfoliosByCategory(String userId, String category) async {
+    try {
+      final allPortfolios = await fetchUserPortfolios(userId);
+      return allPortfolios.where((portfolio) => portfolio.category == category).toList();
+    } catch (e) {
+      print('Error in getPortfoliosByCategory: $e');
+      rethrow;
+    }
+  }
+
+  // Search portfolios by name or category
+  static Future<List<dynamic>> searchPortfolios(String query) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+      
+      final idToken = await user.getIdToken();
+      final response = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}/portfolios/search?query=${Uri.encodeComponent(query)}'),
+        headers: {'Authorization': 'Bearer $idToken'},
+      );
+      
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to search portfolios: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error in searchPortfolios: $e');
+      rethrow;
+    }
+  }
 } 
