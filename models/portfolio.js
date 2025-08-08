@@ -12,10 +12,8 @@ const PortfolioSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-// Create compound unique index for profilename (globally unique across all users)
-PortfolioSchema.index({ profilename: 1 }, { unique: true });
-
-// Also create compound index to prevent same user from having duplicate portfolio names
+// Create compound index to prevent same user from having duplicate portfolio names
+// (Removed global unique index to allow default category names for multiple users)
 PortfolioSchema.index({ userId: 1, profilename: 1 }, { unique: true });
 
 module.exports = mongoose.model('Portfolio', PortfolioSchema); 

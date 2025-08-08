@@ -229,6 +229,35 @@ app.get('/portfolio/name-exists', async (req, res) => {
   if (!profilename || typeof profilename !== 'string') {
     return res.status(400).json({ exists: false });
   }
+
+  // Define default category names that are allowed for multiple users
+  const defaultCategoryNames = [
+    'Creative & Artistic Skills',
+    'Creative and Artistic Skills',
+    'Tech & Programming',
+    'Tech and Programming',
+    'Writing & Communication',
+    'Writing and Communication',
+    'Music & Audio',
+    'Music and Audio',
+    'Performance & Entertainment',
+    'Performance and Entertainment',
+    'Education & Knowledge Sharing',
+    'Education and Knowledge Sharing',
+    'Lifestyle & Wellness',
+    'Lifestyle and Wellness',
+    'Entrepreneurial & Business Skills',
+    'Entrepreneurial and Business Skills',
+    'Other Useful & Unique Skills',
+    'Other Useful and Unique Skills'
+  ];
+
+  // If it's a default category name, allow multiple users to have it
+  if (defaultCategoryNames.includes(profilename)) {
+    return res.json({ exists: false }); // Allow default category names
+  }
+
+  // For custom names, check global uniqueness
   const Portfolio = require('./models/portfolio');
   const portfolio = await Portfolio.findOne({ profilename });
   res.json({ exists: !!portfolio });
@@ -844,26 +873,113 @@ app.get('/posts/audio', async (req, res) => {
   }
 });
 
-// Get feed with portfolio information (excluding audio posts)
+// Get personalized feed based on followed users and portfolios (excluding audio posts)
 app.get('/feed', async (req, res) => {
   try {
-    const posts = await Post.find({ mediaType: { $ne: 'audio' } }).sort({ createdAt: -1 }).lean();
-    
-    // Fetch all users and portfolios in one go for efficiency
+    const currentUserId = req.user.uid;
+
+    // Get current user's following data
+    const currentUser = await User.findOne({ uid: currentUserId });
+    if (!currentUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get followed users (ObjectIds)
+    const followedUserIds = currentUser.following || [];
+
+    // USER-CENTRIC APPROACH:
+    // Show ALL portfolios from followed users (this is the main feed content)
+    const followedUsers = await User.find({ _id: { $in: followedUserIds } });
+    const followedUserUids = followedUsers.map(u => u.uid);
+    const allPortfoliosFromFollowedUsers = await Portfolio.find({
+      userId: { $in: followedUserUids }
+    });
+    const allPortfolioIdsFromFollowedUsers = allPortfoliosFromFollowedUsers.map(p => p._id);
+
+    // Use only portfolios from followed users (user-centric approach)
+    const allRelevantPortfolioIds = allPortfolioIdsFromFollowedUsers;
+
+    // Remove duplicates
+    const uniquePortfolioIds = [...new Set(allRelevantPortfolioIds.map(id => id.toString()))];
+
+    console.log(`\n🔍 USER-CENTRIC FEED DEBUG for user ${currentUserId}:`);
+    console.log(`- Follows ${followedUserIds.length} users: [${followedUserIds.map(id => id.toString()).join(', ')}]`);
+    console.log(`- ${allPortfoliosFromFollowedUsers.length} portfolios from followed users: [${allPortfolioIdsFromFollowedUsers.map(id => id.toString()).join(', ')}]`);
+    console.log(`- Total unique portfolios: ${uniquePortfolioIds.length} [${uniquePortfolioIds.join(', ')}]`);
+
+    // Get posts from all relevant portfolios (excluding audio posts)
+    let posts = await Post.find({
+      portfolioId: { $in: uniquePortfolioIds },
+      mediaType: { $ne: 'audio' }
+    }).sort({ createdAt: -1 }).lean();
+
+    // Track if we're showing discovery content
+    let isDiscoveryMode = false;
+
+    // If user doesn't follow anyone, show recent posts for discovery (limit to 20)
+    if (posts.length === 0) {
+      console.log(`User ${currentUserId} has no followed users, showing discovery posts`);
+      isDiscoveryMode = true;
+      posts = await Post.find({
+        mediaType: { $ne: 'audio' }
+      }).sort({ createdAt: -1 }).limit(20).lean();
+    }
+
+    // Fetch all users and portfolios for mapping
     const users = await User.find({});
     const portfolios = await Portfolio.find({});
-    
+
     const userMap = {};
     const portfolioMap = {};
-    
+
     users.forEach(user => {
       userMap[user.uid] = user;
     });
-    
+
     portfolios.forEach(portfolio => {
       portfolioMap[portfolio._id.toString()] = portfolio;
     });
-    
+
+    // Attach user and portfolio info to each post
+    const postsWithInfo = posts.map(post => ({
+      ...post,
+      name: userMap[post.userId]?.name || '',
+      username: userMap[post.userId]?.username || '',
+      profileImageUrl: userMap[post.userId]?.profileImageUrl || '',
+      likedBy: post.likedBy || [],
+      portfolio: post.portfolioId ? portfolioMap[post.portfolioId.toString()] : null,
+      isDiscovery: isDiscoveryMode, // Flag to indicate if this is discovery content
+    }));
+
+    console.log(`Returning ${postsWithInfo.length} ${isDiscoveryMode ? 'discovery' : 'personalized'} feed posts`);
+
+    res.json(postsWithInfo);
+  } catch (err) {
+    console.error('Error fetching personalized feed:', err);
+    res.status(500).json({ error: 'Failed to fetch personalized feed' });
+  }
+});
+
+// Get all posts feed (for discovery/explore) - keeping the old functionality
+app.get('/feed/all', async (req, res) => {
+  try {
+    const posts = await Post.find({ mediaType: { $ne: 'audio' } }).sort({ createdAt: -1 }).lean();
+
+    // Fetch all users and portfolios in one go for efficiency
+    const users = await User.find({});
+    const portfolios = await Portfolio.find({});
+
+    const userMap = {};
+    const portfolioMap = {};
+
+    users.forEach(user => {
+      userMap[user.uid] = user;
+    });
+
+    portfolios.forEach(portfolio => {
+      portfolioMap[portfolio._id.toString()] = portfolio;
+    });
+
     // Attach user and portfolio info to each post
     const postsWithInfo = posts.map(post => ({
       ...post,
@@ -873,13 +989,13 @@ app.get('/feed', async (req, res) => {
       likedBy: post.likedBy || [],
       portfolio: post.portfolioId ? portfolioMap[post.portfolioId.toString()] : null,
     }));
-    
-    console.log(`Fetched ${postsWithInfo.length} posts with portfolio info`); // Debug log
-    
+
+    console.log(`Fetched ${postsWithInfo.length} posts for discovery feed`); // Debug log
+
     res.json(postsWithInfo);
   } catch (err) {
-    console.error('Error fetching feed:', err);
-    res.status(500).json({ error: 'Failed to fetch feed' });
+    console.error('Error fetching discovery feed:', err);
+    res.status(500).json({ error: 'Failed to fetch discovery feed' });
   }
 });
 
@@ -1036,9 +1152,12 @@ app.get('/user/:userId/posts', async (req, res) => {
 // Get all portfolios for a user
 app.get('/user/:userId/portfolios', async (req, res) => {
   try {
+    console.log('📁 Fetching portfolios for userId (app.js):', req.params.userId);
     const portfolios = await Portfolio.find({ userId: req.params.userId });
+    console.log('📁 Found portfolios (app.js):', portfolios.length);
     res.json(portfolios);
   } catch (err) {
+    console.error('📁 Error fetching portfolios (app.js):', err);
     res.status(500).json({ error: 'Failed to fetch user portfolios' });
   }
 });
@@ -1068,6 +1187,104 @@ app.get('/user/:uid/follow-status', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to check follow status' });
+  }
+});
+
+// Get user's followers list
+app.get('/user/:uid/followers', async (req, res) => {
+  try {
+    const targetUid = req.params.uid;
+    const currentUid = req.user.uid;
+
+    const targetUser = await User.findOne({ uid: targetUid }).populate('followers');
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentUser = await User.findOne({ uid: currentUid });
+
+    // Get detailed follower information
+    const followers = await User.find({
+      _id: { $in: targetUser.followers }
+    }).select('uid name username profileImageUrl followers following bio');
+
+    // Add mutual connection info and follow status
+    const followersWithInfo = followers.map(follower => {
+      const mutualConnections = follower.following ?
+        follower.following.filter(id =>
+          currentUser.following && currentUser.following.some(myFollowId => myFollowId.equals(id))
+        ).length : 0;
+
+      const isFollowingBack = currentUser.following &&
+        currentUser.following.some(id => id.equals(follower._id));
+
+      return {
+        uid: follower.uid,
+        name: follower.name,
+        username: follower.username,
+        profileImageUrl: follower.profileImageUrl,
+        bio: follower.bio,
+        followersCount: follower.followers ? follower.followers.length : 0,
+        followingCount: follower.following ? follower.following.length : 0,
+        mutualConnections,
+        isFollowingBack,
+        isCurrentUser: follower.uid === currentUid
+      };
+    });
+
+    res.json(followersWithInfo);
+  } catch (err) {
+    console.error('Error fetching followers:', err);
+    res.status(500).json({ error: 'Failed to fetch followers' });
+  }
+});
+
+// Get user's following list
+app.get('/user/:uid/following', async (req, res) => {
+  try {
+    const targetUid = req.params.uid;
+    const currentUid = req.user.uid;
+
+    const targetUser = await User.findOne({ uid: targetUid }).populate('following');
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentUser = await User.findOne({ uid: currentUid });
+
+    // Get detailed following information
+    const following = await User.find({
+      _id: { $in: targetUser.following }
+    }).select('uid name username profileImageUrl followers following bio');
+
+    // Add mutual connection info and follow status
+    const followingWithInfo = following.map(followedUser => {
+      const mutualConnections = followedUser.followers ?
+        followedUser.followers.filter(id =>
+          currentUser.following && currentUser.following.some(myFollowId => myFollowId.equals(id))
+        ).length : 0;
+
+      const isFollowingBack = currentUser.following &&
+        currentUser.following.some(id => id.equals(followedUser._id));
+
+      return {
+        uid: followedUser.uid,
+        name: followedUser.name,
+        username: followedUser.username,
+        profileImageUrl: followedUser.profileImageUrl,
+        bio: followedUser.bio,
+        followersCount: followedUser.followers ? followedUser.followers.length : 0,
+        followingCount: followedUser.following ? followedUser.following.length : 0,
+        mutualConnections,
+        isFollowingBack,
+        isCurrentUser: followedUser.uid === currentUid
+      };
+    });
+
+    res.json(followingWithInfo);
+  } catch (err) {
+    console.error('Error fetching following:', err);
+    res.status(500).json({ error: 'Failed to fetch following' });
   }
 });
 

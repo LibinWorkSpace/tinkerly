@@ -178,6 +178,34 @@ const checkUsernameUnique = async (username) => {
 };
 
 const checkPortfolioNameUnique = async (profilename) => {
+  // Define default category names that are allowed for multiple users
+  const defaultCategoryNames = [
+    'Creative & Artistic Skills',
+    'Creative and Artistic Skills',
+    'Tech & Programming',
+    'Tech and Programming',
+    'Writing & Communication',
+    'Writing and Communication',
+    'Music & Audio',
+    'Music and Audio',
+    'Performance & Entertainment',
+    'Performance and Entertainment',
+    'Education & Knowledge Sharing',
+    'Education and Knowledge Sharing',
+    'Lifestyle & Wellness',
+    'Lifestyle and Wellness',
+    'Entrepreneurial & Business Skills',
+    'Entrepreneurial and Business Skills',
+    'Other Useful & Unique Skills',
+    'Other Useful and Unique Skills'
+  ];
+
+  // If it's a default category name, allow multiple users to have it
+  if (defaultCategoryNames.includes(profilename)) {
+    return true; // Allow multiple users to have default category names
+  }
+
+  // For custom names, check global uniqueness
   const Portfolio = require('../models/portfolio');
   const existingPortfolio = await Portfolio.findOne({ profilename });
   return !existingPortfolio;
