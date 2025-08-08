@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'profile_screen.dart';
 import 'package:tinkerly/screens/user/create_post_screen.dart'; // Add this import
 import 'package:tinkerly/services/user_service.dart';
+import 'package:tinkerly/services/portfolio_service.dart';
 import 'package:video_player/video_player.dart';
 import '../../widgets/main_bottom_nav_bar.dart';
 import '../../widgets/mini_audio_player.dart';
@@ -121,17 +122,25 @@ class _HomeFeedState extends State<HomeFeed> {
   }
 
   Future<List<dynamic>> _fetchFeedWithPortfolio() async {
+    print('🔄 FETCHING FEED - Starting feed refresh...');
     final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+    // Add timestamp to prevent caching
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
     final response = await http.get(
-      Uri.parse('${ApiConstants.baseUrl}/feed'),
+      Uri.parse('${ApiConstants.baseUrl}/feed?t=$timestamp'),
       headers: {'Authorization': 'Bearer $idToken'},
     );
     if (response.statusCode == 200) {
       final List<dynamic> posts = jsonDecode(response.body);
       // Filter out audio posts - they should only appear in Portfolio section
       final nonAudioPosts = posts.where((post) => post['mediaType'] != 'audio').toList();
+      print('📱 FEED FETCHED - Got ${nonAudioPosts.length} posts');
+      // Log portfolio IDs for debugging
+      final portfolioIds = nonAudioPosts.map((post) => post['portfolioId']).where((id) => id != null).toSet();
+      print('📂 Portfolio IDs in feed: $portfolioIds');
       return nonAudioPosts;
     } else {
+      print('❌ FEED FETCH FAILED - Status: ${response.statusCode}');
       throw Exception('Failed to fetch feed');
     }
   }
@@ -270,6 +279,15 @@ class _HomeFeedState extends State<HomeFeed> {
                       _postsFuture = _fetchFeedWithPortfolio();
                     });
                   },
+                  onFollowChanged: () async {
+                    // Refresh the feed when follow status changes
+                    print('🔄 REFRESHING FEED after follow/unfollow action');
+                    // Add a small delay to ensure backend has processed the change
+                    await Future.delayed(Duration(milliseconds: 500));
+                    setState(() {
+                      _postsFuture = _fetchFeedWithPortfolio();
+                    });
+                  },
                 );
               },
             ),
@@ -284,12 +302,14 @@ class _InstagramPostCard extends StatefulWidget {
   final dynamic post;
   final List<dynamic> allPosts;
   final VoidCallback? onCommentCountChanged;
+  final VoidCallback? onFollowChanged;
 
   const _InstagramPostCard({
     Key? key,
     required this.post,
     required this.allPosts,
     this.onCommentCountChanged,
+    this.onFollowChanged,
   }) : super(key: key);
 
   @override
@@ -424,7 +444,8 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
     final mediaType = (post['mediaType'] ?? '').toString().toLowerCase();
     final isImage = mediaType == 'image';
     final isVideo = mediaType == 'video';
-    
+    final bool isDiscovery = post['isDiscovery'] == true;
+
     return Container(
       margin: EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
@@ -435,6 +456,52 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Discovery indicator
+          if (isDiscovery)
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+                border: Border(
+                  bottom: BorderSide(
+                    color: Colors.blue.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.explore_outlined,
+                    color: Colors.blue,
+                    size: 16,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Suggested for you',
+                    style: GoogleFonts.poppins(
+                      color: Colors.blue,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Spacer(),
+                  Text(
+                    'Discover',
+                    style: GoogleFonts.poppins(
+                      color: Colors.blue.withOpacity(0.7),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // Header
           Padding(
             padding: const EdgeInsets.all(16),
@@ -444,7 +511,9 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
-                      colors: [Color(0xFF6C63FF), Color(0xFFFF6B9D)],
+                      colors: isDiscovery
+                        ? [Colors.blue, Colors.lightBlue] // Blue gradient for discovery
+                        : [Color(0xFF6C63FF), Color(0xFFFF6B9D)], // Original gradient for followed
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -484,13 +553,40 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
                             );
                           }
                         },
-                        child: Text(
-                          portfolio != null ? portfolio['profilename'] ?? 'Portfolio' : 'Portfolio',
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                            color: Colors.white,
-                          ),
+                        child: Row(
+                          children: [
+                            Text(
+                              portfolio != null ? portfolio['profilename'] ?? 'Portfolio' : 'Portfolio',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                                color: Colors.white,
+                              ),
+                            ),
+                            if (isDiscovery) ...[
+                              SizedBox(width: 6),
+                              Container(
+                                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withAlpha(51),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.blue.withAlpha(102),
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: Text(
+                                  'NEW',
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.blue,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       Text(
@@ -504,7 +600,7 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
                   ),
                 ),
                 if (post['userId'] != FirebaseAuth.instance.currentUser?.uid)
-                  _FollowButton(userId: post['userId']),
+                  _buildFollowButton(post, portfolio),
                 const SizedBox(width: 8),
                 Container(
                   padding: EdgeInsets.all(8),
@@ -877,6 +973,64 @@ class _InstagramPostCardState extends State<_InstagramPostCard> {
       ),
     );
   }
+
+  Widget _buildFollowButton(dynamic post, dynamic portfolio) {
+    // We need to determine if the current user follows the post author
+    // If they follow the user, show portfolio follow button
+    // If they don't follow the user, show user follow button
+
+    // For now, let's use a FutureBuilder to check follow status
+    return FutureBuilder<bool>(
+      future: _checkIfFollowingUser(post['userId']),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue),
+            ),
+          );
+        }
+
+        final bool isFollowingUser = snapshot.data ?? false;
+
+        if (isFollowingUser && portfolio != null && portfolio['_id'] != null) {
+          // User follows the author, show portfolio follow button
+          return _PortfolioFollowButton(
+            portfolioId: portfolio['_id'],
+            onFollowChanged: widget.onFollowChanged,
+          );
+        } else {
+          // User doesn't follow the author, show user follow button
+          return _FollowButton(
+            userId: post['userId'],
+            onFollowChanged: widget.onFollowChanged,
+          );
+        }
+      },
+    );
+  }
+
+  Future<bool> _checkIfFollowingUser(String userId) async {
+    try {
+      final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
+      final response = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}/user/$userId/follow-status'),
+        headers: {'Authorization': 'Bearer $idToken'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['isFollowing'] ?? false;
+      }
+      return false;
+    } catch (e) {
+      print('Error checking follow status: $e');
+      return false;
+    }
+  }
 }
 
 String _formatPostTime(dynamic createdAt) {
@@ -899,8 +1053,9 @@ String _formatPostTime(dynamic createdAt) {
 
 class _FollowButton extends StatefulWidget {
   final String userId;
+  final VoidCallback? onFollowChanged;
 
-  const _FollowButton({Key? key, required this.userId}) : super(key: key);
+  const _FollowButton({Key? key, required this.userId, this.onFollowChanged}) : super(key: key);
 
   @override
   State<_FollowButton> createState() => _FollowButtonState();
@@ -946,12 +1101,126 @@ class _FollowButtonState extends State<_FollowButton> {
         setState(() {
           isFollowing = !isFollowing;
         });
+        print('👤 User follow button: ${isFollowing ? "FOLLOWED" : "UNFOLLOWED"} user ${widget.userId}');
+        // Notify parent to refresh feed
+        if (widget.onFollowChanged != null) {
+          print('🔄 Calling onFollowChanged callback for user follow');
+          widget.onFollowChanged!();
+        } else {
+          print('❌ No onFollowChanged callback provided for user follow');
+        }
       }
     } catch (e) {
       print('Error toggling follow: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to ${isFollowing ? 'unfollow' : 'follow'} user')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() { isLoading = false; });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _toggleFollow,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: BoxDecoration(
+          color: isFollowing ? Colors.grey[800] : Colors.blue,
+          borderRadius: BorderRadius.circular(6),
+          border: isFollowing ? Border.all(color: Colors.grey[600]!) : null,
+        ),
+        child: isLoading
+            ? SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
+            : Text(
+                isFollowing ? 'Following' : 'Follow',
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class _PortfolioFollowButton extends StatefulWidget {
+  final String portfolioId;
+  final VoidCallback? onFollowChanged;
+
+  const _PortfolioFollowButton({Key? key, required this.portfolioId, this.onFollowChanged}) : super(key: key);
+
+  @override
+  State<_PortfolioFollowButton> createState() => _PortfolioFollowButtonState();
+}
+
+class _PortfolioFollowButtonState extends State<_PortfolioFollowButton> {
+  bool isFollowing = false;
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFollowStatus();
+  }
+
+  Future<void> _checkFollowStatus() async {
+    try {
+      final status = await PortfolioService.getPortfolioFollowStatus(widget.portfolioId);
+      if (mounted) {
+        setState(() {
+          isFollowing = status['isFollowing'] ?? false;
+        });
+      }
+    } catch (e) {
+      print('Error checking portfolio follow status: $e');
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    if (isLoading) return;
+
+    setState(() { isLoading = true; });
+
+    try {
+      bool success;
+      if (isFollowing) {
+        success = await PortfolioService.unfollowPortfolio(widget.portfolioId);
+      } else {
+        success = await PortfolioService.followPortfolio(widget.portfolioId);
+      }
+
+      if (success && mounted) {
+        setState(() {
+          isFollowing = !isFollowing;
+        });
+        print('📱 Portfolio follow button: ${isFollowing ? "FOLLOWED" : "UNFOLLOWED"} portfolio ${widget.portfolioId}');
+        // Notify parent to refresh feed
+        if (widget.onFollowChanged != null) {
+          print('🔄 Calling onFollowChanged callback');
+          widget.onFollowChanged!();
+        } else {
+          print('❌ No onFollowChanged callback provided');
+        }
+      }
+    } catch (e) {
+      print('Error toggling portfolio follow: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to ${isFollowing ? 'unfollow' : 'follow'} portfolio')),
         );
       }
     } finally {

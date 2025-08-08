@@ -8,6 +8,7 @@ import '../../widgets/enhanced_music_player_widget.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'edit_portfolio_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../connections/portfolio_connections_screen.dart';
 
 class PortfolioProfileScreen extends StatefulWidget {
   final String portfolioId;
@@ -27,6 +28,7 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
   bool _hasError = false;
   bool _isFollowing = false;
   bool _isFollowLoading = false;
+  int _followersCount = 0;
 
   @override
   void initState() {
@@ -46,16 +48,29 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
       products = (fullData['products'] as List?)?.map((e) => Product.fromMap(e)).toList() ?? [];
       followers = await PortfolioService.fetchPortfolioFollowers(widget.portfolioId);
 
-      // Check if current user is following this portfolio
+      // Get follow status using the new API
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser != null) {
-        _isFollowing = followers.any((follower) => follower['_id'] == currentUser.uid || follower['uid'] == currentUser.uid);
+        try {
+          final followStatus = await PortfolioService.getPortfolioFollowStatus(widget.portfolioId);
+          _isFollowing = followStatus['isFollowing'] ?? false;
+          _followersCount = followStatus['followersCount'] ?? followers.length;
+        } catch (e) {
+          print('Error getting follow status: $e');
+          // Fallback to old method
+          _isFollowing = followers.any((follower) => follower['_id'] == currentUser.uid || follower['uid'] == currentUser.uid);
+          _followersCount = followers.length;
+        }
+      } else {
+        _isFollowing = false;
+        _followersCount = followers.length;
       }
 
       print('Portfolio loaded: ${portfolio?.profilename}'); // Debug log
       print('Posts count: ${posts.length}'); // Debug log
       print('Products count: ${products.length}'); // Debug log
       print('Is following: $_isFollowing'); // Debug log
+      print('Followers count: $_followersCount'); // Debug log
 
       _tabController ??= TabController(length: 2, vsync: this);
       setState(() { _isLoading = false; });
@@ -67,7 +82,13 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
 
   bool _isCurrentUserOwner() {
     final currentUser = FirebaseAuth.instance.currentUser;
-    return currentUser != null && portfolio != null && portfolio!.userId == currentUser.uid;
+    final isOwner = currentUser != null && portfolio != null && portfolio!.userId == currentUser.uid;
+    print('=== OWNERSHIP CHECK ===');
+    print('Current user UID: ${currentUser?.uid}');
+    print('Portfolio userId: ${portfolio?.userId}');
+    print('Is owner: $isOwner');
+    print('======================');
+    return isOwner;
   }
 
   Future<void> _toggleFollow() async {
@@ -76,26 +97,40 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
     setState(() { _isFollowLoading = true; });
 
     try {
-      // TODO: Implement portfolio follow/unfollow API calls
-      // For now, just toggle the state locally
-      setState(() {
-        _isFollowing = !_isFollowing;
-        if (_isFollowing) {
-          // Add current user to followers list (simplified)
-          // In real implementation, this should be handled by the backend
-        } else {
-          // Remove current user from followers list (simplified)
-          // In real implementation, this should be handled by the backend
-        }
-      });
+      bool success;
+      if (_isFollowing) {
+        success = await PortfolioService.unfollowPortfolio(widget.portfolioId);
+      } else {
+        success = await PortfolioService.followPortfolio(widget.portfolioId);
+      }
 
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_isFollowing ? 'Following portfolio' : 'Unfollowed portfolio'),
-          backgroundColor: _isFollowing ? Colors.green : Colors.orange,
-        ),
-      );
+      if (success && mounted) {
+        setState(() {
+          _isFollowing = !_isFollowing;
+          // Update followers count locally for immediate UI feedback
+          if (_isFollowing) {
+            _followersCount++;
+          } else {
+            _followersCount = (_followersCount > 0) ? _followersCount - 1 : 0;
+          }
+        });
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_isFollowing ? 'Following portfolio' : 'Unfollowed portfolio'),
+            backgroundColor: _isFollowing ? Colors.green : Colors.orange,
+          ),
+        );
+      } else {
+        // Show error message if API call failed
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to ${_isFollowing ? 'unfollow' : 'follow'} portfolio'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
       print('Error toggling follow: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -105,7 +140,9 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
         ),
       );
     } finally {
-      setState(() { _isFollowLoading = false; });
+      if (mounted) {
+        setState(() { _isFollowLoading = false; });
+      }
     }
   }
 
@@ -117,6 +154,18 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
         Navigator.of(context).pushReplacementNamed('/home');
       }
     });
+  }
+
+  void _openPortfolioFollowers() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PortfolioConnectionsScreen(
+          portfolioId: widget.portfolioId,
+          portfolioName: portfolio?.profilename ?? 'Portfolio',
+        ),
+      ),
+    );
   }
 
   @override
@@ -248,9 +297,8 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         _buildStatColumn("Posts", posts.length.toString()),
-                        // Only show follower count for portfolio owner
-                        if (_isCurrentUserOwner())
-                          _buildStatColumn("Followers", followers.length.toString()),
+                        // Show follower count for all users (not just owner)
+                        _buildStatColumn("Followers", _followersCount.toString()),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -331,6 +379,32 @@ class _PortfolioProfileScreenState extends State<PortfolioProfileScreen> with Si
                         ),
                       ),
                     ),
+                    const SizedBox(height: 16),
+
+                    // View Followers Button
+                    Container(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _openPortfolioFollowers(),
+                        icon: Icon(Icons.people_outline, color: Color(0xFF6C63FF), size: 20),
+                        label: Text(
+                          'View Followers (${followers.length})',
+                          style: GoogleFonts.poppins(
+                            color: Color(0xFF6C63FF),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Color(0xFF6C63FF), width: 2),
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
+                    ),
+
                     const SizedBox(height: 24),
                   ],
                 ),

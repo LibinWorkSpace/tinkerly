@@ -20,6 +20,8 @@ import '../../constants/categories.dart';
 import '../../services/portfolio_service.dart';
 import 'portfolio_profile_screen.dart';
 import 'edit_portfolio_screen.dart';
+import '../connections/user_connections_screen.dart';
+import '../connections/portfolio_connections_screen.dart';
 
 final GlobalKey<_ProfileScreenState> profileScreenKey = GlobalKey<_ProfileScreenState>();
 
@@ -46,6 +48,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   List<String> categories = [];
   bool _hasError = false;
   bool _isLoading = true;
+  bool _isRefreshingPortfolios = false;
   String? _selectedPortfolioId;
 
   @override
@@ -248,12 +251,25 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       );
       if (updated == true) {
         print('Profile updated, refreshing data...'); // Debug log
+
+        // First refresh the profile data
         await loadProfileAndPosts();
-        // Wait a bit for portfolios to be created, then refresh
-        await Future.delayed(Duration(milliseconds: 1000));
+
+        // Wait longer for portfolios to be created on the backend
+        print('Waiting for portfolio creation to complete...');
+        await Future.delayed(Duration(milliseconds: 2000));
+
+        // Refresh portfolios multiple times to ensure they're loaded
+        print('Refreshing portfolios...');
         await refreshPortfolios();
+
+        // Wait a bit more and refresh again
+        await Future.delayed(Duration(milliseconds: 500));
+        await refreshPortfolios();
+
         // Ensure portfolios exist for all user categories after refresh
         await ensurePortfoliosExist();
+
         print('Profile and portfolios refresh completed');
       }
     } catch (e) {
@@ -276,6 +292,30 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     if (result == true) {
       await loadProfileAndPosts();
     }
+  }
+
+  void _openConnections(int initialTab) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UserConnectionsScreen(
+          userId: userProfile!['uid'] ?? '',
+          userName: userProfile!['name'] ?? '',
+          initialTab: initialTab,
+        ),
+      ),
+    );
+  }
+
+  void _openPortfolioConnections() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PortfolioConnectionsScreen(
+          userId: userProfile!['uid'] ?? '',
+        ),
+      ),
+    );
   }
 
   @override
@@ -530,7 +570,81 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   onButtonPressed: _editProfile,
                   isButtonLoading: false,
                   showButton: true,
+                  onConnectionsTap: _openConnections, // Pass the callback
                 ),
+                const SizedBox(height: 16),
+
+                // Action Buttons Row
+                Container(
+                  margin: EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      // Portfolio Connections Button
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => _openPortfolioConnections(),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Color(0xFF6C63FF),
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 2,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.folder_special_outlined, size: 18),
+                              SizedBox(width: 6),
+                              Text(
+                                'Portfolio Connections',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      SizedBox(width: 12),
+
+                      // Debug Refresh Button (temporary)
+                      ElevatedButton(
+                        onPressed: _isRefreshingPortfolios ? null : () async {
+                          setState(() => _isRefreshingPortfolios = true);
+                          print('🔄 Manual refresh triggered');
+                          await loadProfileAndPosts();
+                          await refreshPortfolios();
+                          await ensurePortfoliosExist();
+                          print('🔄 Manual refresh completed');
+                          setState(() => _isRefreshingPortfolios = false);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: _isRefreshingPortfolios
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Icon(Icons.refresh, size: 18),
+                      ),
+                    ],
+                  ),
+                ),
+
                 const SizedBox(height: 24),
                 Container(
                   margin: EdgeInsets.symmetric(horizontal: 16),
@@ -954,6 +1068,7 @@ class ProfileHeaderCard extends StatelessWidget {
   final VoidCallback? onButtonPressed;
   final bool isButtonLoading;
   final bool showButton;
+  final Function(int)? onConnectionsTap; // Callback for connections
 
   const ProfileHeaderCard({
     required this.userProfile,
@@ -965,6 +1080,7 @@ class ProfileHeaderCard extends StatelessWidget {
     this.onButtonPressed,
     this.isButtonLoading = false,
     this.showButton = false,
+    this.onConnectionsTap,
     Key? key,
   }) : super(key: key);
 
@@ -1068,8 +1184,16 @@ class ProfileHeaderCard extends StatelessWidget {
             children: [
               _buildStatColumn("Posts", postCount.toString()),
               if (showFollowStats) ...[
-                _buildStatColumn("Followers", (followerCount ?? 0).toString()),
-                _buildStatColumn("Following", (followingCount ?? 0).toString()),
+                _buildClickableStatColumn(
+                  "Followers",
+                  (followerCount ?? 0).toString(),
+                  onConnectionsTap != null ? () => onConnectionsTap!(0) : null, // 0 = followers tab
+                ),
+                _buildClickableStatColumn(
+                  "Following",
+                  (followingCount ?? 0).toString(),
+                  onConnectionsTap != null ? () => onConnectionsTap!(1) : null, // 1 = following tab
+                ),
               ],
             ],
           ),
@@ -1159,6 +1283,40 @@ class ProfileHeaderCard extends StatelessWidget {
         const SizedBox(height: 2),
         Text(label, style: const TextStyle(fontSize: 13, color: Colors.black54)),
       ],
+    );
+  }
+
+  Widget _buildClickableStatColumn(String label, String value, VoidCallback? onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.transparent,
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: Color(0xFF6C63FF),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: Colors.black54,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1272,17 +1430,24 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
     loadProfileAndPosts();
   }
 
+  bool _isOwnProfile() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    return currentUser != null && currentUser.uid == widget.uid;
+  }
+
   Future<void> loadProfileAndPosts() async {
     try {
       final profile = await UserService.fetchPublicProfile(widget.uid);
       final posts = await UserService.fetchPostsForUser(widget.uid);
       final fetchedPortfolios = await PortfolioService.fetchUserPortfolios(widget.uid);
 
-      // Check if the current user is following this user using the proper API
-      final followStatus = await UserService.getFollowStatus(widget.uid);
-      final isUserFollowing = followStatus != null ? (followStatus['isFollowing'] ?? false) : false;
-
-      print('Follow status for ${widget.uid}: $isUserFollowing'); // Debug log
+      // Only check follow status if this is not the user's own profile
+      bool isUserFollowing = false;
+      if (!_isOwnProfile()) {
+        final followStatus = await UserService.getFollowStatus(widget.uid);
+        isUserFollowing = followStatus != null ? (followStatus['isFollowing'] ?? false) : false;
+        print('Follow status for ${widget.uid}: $isUserFollowing'); // Debug log
+      }
 
       if (!mounted) return;
       if (_tabController == null || _tabController!.length != 2) {
@@ -1304,6 +1469,11 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
         isLoading = false;
       });
     }
+  }
+
+  Future<void> _editProfile() async {
+    // Navigate to edit profile screen
+    Navigator.pushNamed(context, '/edit-profile');
   }
 
   Future<void> _toggleFollow() async {
@@ -1387,8 +1557,10 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> with SingleTi
                   userProfile: userProfile!,
                   postCount: allPosts.length,
                   showFollowStats: false, // Hide follow/following for public
-                  buttonText: isFollowing ? 'Unfollow' : 'Follow',
-                  onButtonPressed: _toggleFollow,
+                  buttonText: _isOwnProfile()
+                      ? 'Edit Profile'
+                      : (isFollowing ? 'Unfollow' : 'Follow'),
+                  onButtonPressed: _isOwnProfile() ? _editProfile : _toggleFollow,
                   isButtonLoading: isLoading,
                   showButton: true,
                 ),

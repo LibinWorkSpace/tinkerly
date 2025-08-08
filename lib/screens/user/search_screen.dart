@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../widgets/modern_text_field.dart';
 import '../../widgets/modern_card.dart';
 import '../../constants/app_theme.dart';
@@ -890,28 +891,8 @@ class _UserSearchScreenState extends State<UserSearchScreen> with TickerProvider
               ],
             ),
           ),
-          // Follow Button
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              gradient: AppTheme.primaryGradient,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.primaryColor.withOpacity(0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Text(
-              'Follow',
-              style: AppTheme.bodySmall.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+          // Follow/Open Button
+          _buildUserActionButton(user),
         ],
       ),
     ).animate().fadeIn(
@@ -921,6 +902,67 @@ class _UserSearchScreenState extends State<UserSearchScreen> with TickerProvider
       begin: 0.3,
       duration: 400.ms,
       delay: Duration(milliseconds: index * 100),
+    );
+  }
+
+  Widget _buildUserActionButton(dynamic user) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final isOwnProfile = currentUser != null && user['uid'] == currentUser.uid;
+
+    return GestureDetector(
+      onTap: () {
+        if (isOwnProfile) {
+          // Navigate to own profile screen (not public profile)
+          Navigator.pushNamed(context, '/profile');
+        } else {
+          // Handle follow/unfollow logic for other users
+          // TODO: Implement follow/unfollow functionality
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Follow functionality coming soon!'),
+              backgroundColor: AppTheme.primaryColor,
+            ),
+          );
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: isOwnProfile
+              ? LinearGradient(
+                  colors: [Color(0xFF6C63FF), Color(0xFFFF6B9D)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                )
+              : AppTheme.primaryGradient,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primaryColor.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isOwnProfile ? Icons.open_in_new : Icons.person_add,
+              color: Colors.white,
+              size: 16,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              isOwnProfile ? 'Open' : 'Follow',
+              style: AppTheme.bodySmall.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

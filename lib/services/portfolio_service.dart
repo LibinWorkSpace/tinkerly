@@ -239,13 +239,13 @@ class PortfolioService {
       if (user == null) {
         throw Exception('User not authenticated');
       }
-      
+
       final idToken = await user.getIdToken();
       final response = await http.get(
         Uri.parse('${ApiConstants.baseUrl}/portfolios/search?query=${Uri.encodeComponent(query)}'),
         headers: {'Authorization': 'Bearer $idToken'},
       );
-      
+
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       } else {
@@ -256,4 +256,103 @@ class PortfolioService {
       rethrow;
     }
   }
-} 
+
+  // Follow a portfolio by ID
+  static Future<bool> followPortfolio(String portfolioId) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        print('ERROR: No authenticated user');
+        return false;
+      }
+
+      final idToken = await user.getIdToken();
+      print('Following portfolio: $portfolioId');
+      print('Current user: ${user.uid}');
+
+      final response = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}/portfolios/$portfolioId/follow'),
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('Follow portfolio response status: ${response.statusCode}');
+      print('Follow portfolio response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['success'] == true;
+      } else {
+        print('Failed to follow portfolio: ${response.statusCode} - ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Error in followPortfolio: $e');
+      return false;
+    }
+  }
+
+  // Unfollow a portfolio by ID
+  static Future<bool> unfollowPortfolio(String portfolioId) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        print('ERROR: No authenticated user');
+        return false;
+      }
+
+      final idToken = await user.getIdToken();
+      print('Unfollowing portfolio: $portfolioId');
+      print('Current user: ${user.uid}');
+
+      final response = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}/portfolios/$portfolioId/unfollow'),
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('Unfollow portfolio response status: ${response.statusCode}');
+      print('Unfollow portfolio response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['success'] == true;
+      } else {
+        print('Failed to unfollow portfolio: ${response.statusCode} - ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      print('Error in unfollowPortfolio: $e');
+      return false;
+    }
+  }
+
+  // Check portfolio follow status
+  static Future<Map<String, dynamic>> getPortfolioFollowStatus(String portfolioId) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final idToken = await user.getIdToken();
+      final response = await http.get(
+        Uri.parse('${ApiConstants.baseUrl}/portfolios/$portfolioId/follow-status'),
+        headers: {'Authorization': 'Bearer $idToken'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to get follow status: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error in getPortfolioFollowStatus: $e');
+      rethrow;
+    }
+  }
+}
